@@ -45,7 +45,7 @@ Gerencia configurações de gateways (Telegram, WhatsApp, Email, Google Chat).
 ### 2.1 Estrutura
 
 ```
-cast gateway <provider> <ação> [argumentos] [flags]
+cast gateway <ação> [provider] [argumentos] [flags]
 ```
 
 **Providers suportados:**
@@ -58,8 +58,10 @@ cast gateway <provider> <ação> [argumentos] [flags]
 
 #### `add` - Adicionar/Configurar Gateway
 ```bash
-cast gateway <provider> add [flags]
+cast gateway add [provider] [flags]
 ```
+
+**Nota:** Se `provider` não for especificado e a flag `--interactive` for usada, o wizard permitirá selecionar o provider interativamente.
 
 **Flags:**
 - `--token <token>` (Telegram)
@@ -78,18 +80,21 @@ cast gateway <provider> add [flags]
 **Exemplos:**
 ```bash
 # Telegram via flags
-cast gateway telegram add --token "123456:ABC" --default-chat-id "123456789"
+cast gateway add telegram --token "123456:ABC" --default-chat-id "123456789"
 
 # Email via wizard interativo
-cast gateway email add --interactive
+cast gateway add email --interactive
+
+# Wizard interativo (seleciona provider)
+cast gateway add --interactive
 
 # WhatsApp
-cast gateway whatsapp add --phone-number-id "123" --access-token "EAAxxx"
+cast gateway add whatsapp --phone-number-id "123" --access-token "EAAxxx"
 ```
 
 #### `show` - Mostrar Configuração
 ```bash
-cast gateway <provider> show [flags]
+cast gateway show <provider> [flags]
 ```
 
 **Flags:**
@@ -97,26 +102,26 @@ cast gateway <provider> show [flags]
 
 **Exemplos:**
 ```bash
-cast gateway telegram show
-cast gateway email show --mask=false  # Mostra senha (cuidado!)
+cast gateway show telegram
+cast gateway show email --mask=false  # Mostra senha (cuidado!)
 ```
 
 #### `update` - Atualizar Configuração
 ```bash
-cast gateway <provider> update [flags]
+cast gateway update <provider> [flags]
 ```
 
 **Flags:** Mesmas do comando `add`
 
 **Exemplos:**
 ```bash
-cast gateway telegram update --default-chat-id "987654321"
-cast gateway email update --smtp-port 465 --use-ssl
+cast gateway update telegram --default-chat-id "987654321"
+cast gateway update email --smtp-port 465 --use-ssl
 ```
 
 #### `remove` - Remover Configuração
 ```bash
-cast gateway <provider> remove [flags]
+cast gateway remove <provider> [flags]
 ```
 
 **Flags:**
@@ -124,13 +129,13 @@ cast gateway <provider> remove [flags]
 
 **Exemplos:**
 ```bash
-cast gateway telegram remove
-cast gateway whatsapp remove --confirm
+cast gateway remove telegram
+cast gateway remove whatsapp --confirm
 ```
 
 #### `test` - Testar Configuração
 ```bash
-cast gateway <provider> test [flags]
+cast gateway test <provider> [flags]
 ```
 
 **Flags:**
@@ -138,33 +143,36 @@ cast gateway <provider> test [flags]
 
 **Exemplos:**
 ```bash
-cast gateway telegram test
-cast gateway email test --target "teste@exemplo.com"
+cast gateway test telegram
+cast gateway test email --target "teste@exemplo.com"
 ```
 
 ### 2.3 Exemplos Completos
 
 ```bash
 # Configurar Telegram
-cast gateway telegram add \
+cast gateway add telegram \
   --token "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" \
   --default-chat-id "123456789" \
   --timeout 30
 
 # Configurar Email via wizard
-cast gateway email add --interactive
+cast gateway add email --interactive
+
+# Wizard interativo (seleciona provider)
+cast gateway add --interactive
 
 # Ver configuração do Telegram
-cast gateway telegram show
+cast gateway show telegram
 
 # Atualizar timeout do Email
-cast gateway email update --timeout 60
+cast gateway update email --timeout 60
 
 # Testar conexão SMTP
-cast gateway email test --target "admin@empresa.com"
+cast gateway test email --target "admin@empresa.com"
 
 # Remover configuração do WhatsApp
-cast gateway whatsapp remove
+cast gateway remove whatsapp
 ```
 
 ---
@@ -423,11 +431,11 @@ O modo wizard (`--interactive` ou `-i`) permite configurar gateways através de 
 ### 5.3 Exemplos
 
 ```bash
-# Wizard completo
+# Wizard completo (seleciona provider)
 cast gateway add --interactive
 
-# Wizard para Email
-cast gateway email add --interactive
+# Wizard para Email específico
+cast gateway add email --interactive
 ```
 
 ---
@@ -529,8 +537,11 @@ Todas as validações devem retornar mensagens claras em português:
 
 ```bash
 # Configurar tudo via wizard
-cast gateway telegram add --interactive
-cast gateway email add --interactive
+cast gateway add telegram --interactive
+cast gateway add email --interactive
+
+# Wizard interativo (seleciona provider)
+cast gateway add --interactive
 
 # Adicionar aliases
 cast alias add me tg "123456789" --name "Meu Telegram"
@@ -544,11 +555,11 @@ cast alias add team mail "sdc@tre-pa.jus.br" --name "Time TRE-PA"
 cast send me "Deploy finalizado!"
 
 # Ver configurações
-cast gateway telegram show
+cast gateway show telegram
 cast alias list
 
 # Atualizar configuração
-cast gateway email update --smtp-port 465 --use-ssl
+cast gateway update email --smtp-port 465 --use-ssl
 ```
 
 ### 9.3 Backup e Restore

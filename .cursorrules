@@ -55,6 +55,7 @@
   - Se a API do Telegram mudar ou o SMTP falhar, reporte o erro real, não mascare.
   - Apenas marque como "Pronto" quando o binário `cast.exe` realmente entregar a mensagem no destino.
   - NUNCA MINTA sobre a cobertura de testes ou estabilidade do binário.
+  - Se os testes falham, pode ser a forma como os testes foram feitos, mas também pode mostrar o óbvio: que a funcionalidade está com bugs e precisa ser revisada.
 
 ## compilação
   - copie o arquivo executável para `./run` sempre que compilar.

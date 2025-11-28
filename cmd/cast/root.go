@@ -20,6 +20,8 @@ Suporta múltiplos canais: Telegram, WhatsApp, Email, Google Chat.`,
 
 // Execute executa o comando raiz.
 func Execute() error {
+	// Aplica templates em português a todos os comandos antes de executar
+	applyPortugueseHelpToCommand(rootCmd)
 	return rootCmd.Execute()
 }
 
@@ -72,9 +74,57 @@ Use "{{.CommandPath}} [comando] --help" para mais informações sobre um comando
 	// Aplica templates em português para todos os comandos
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetHelpTemplate(helpTemplate)
-	sendCmd.SetUsageTemplate(usageTemplate)
-	sendCmd.SetHelpTemplate(helpTemplate)
+
+	// Aplica templates aos comandos principais
+	applyPortugueseHelpToCommand(sendCmd)
+	applyPortugueseHelpToCommand(aliasCmd)
+	applyPortugueseHelpToCommand(configCmd)
+	applyPortugueseHelpToCommand(gatewayCmd)
 
 	// Traduz mensagens de erro comuns
 	cobra.MousetrapHelpText = "Este é um comando de linha de comando. Você precisa executá-lo no terminal."
+}
+
+// applyPortugueseHelpToCommand aplica templates em português a um comando e seus subcomandos.
+func applyPortugueseHelpToCommand(cmd *cobra.Command) {
+	if cmd == nil {
+		return
+	}
+
+	usageTemplate := `Uso:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [comando]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Exemplos:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+
+Comandos Disponíveis:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Flags Globais:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Comandos Adicionais:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [comando] --help" para mais informações sobre um comando.{{end}}
+`
+
+	helpTemplate := `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces}}
+
+{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
+
+	cmd.SetUsageTemplate(usageTemplate)
+	cmd.SetHelpTemplate(helpTemplate)
+
+	// Aplica recursivamente aos subcomandos
+	for _, subCmd := range cmd.Commands() {
+		applyPortugueseHelpToCommand(subCmd)
+	}
 }
