@@ -187,13 +187,152 @@ var aliasRemoveCmd = &cobra.Command{
 	},
 }
 
+var aliasShowCmd = &cobra.Command{
+	Use:   "show <nome>",
+	Short: "Mostra detalhes de um alias",
+	Long: `Mostra detalhes de um alias específico em formato "Ficha Técnica".`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		aliasName := args[0]
+
+		// Carrega configuração
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Busca alias
+		alias := cfg.GetAlias(aliasName)
+		if alias == nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Alias '%s' não encontrado\n", aliasName)
+			return fmt.Errorf("alias '%s' não encontrado", aliasName)
+		}
+
+		// Formata provider name para exibição
+		providerDisplay := alias.Provider
+		switch alias.Provider {
+		case "tg":
+			providerDisplay = "tg (Telegram)"
+		case "mail":
+			providerDisplay = "mail (Email)"
+		case "zap":
+			providerDisplay = "zap (WhatsApp)"
+		case "google_chat":
+			providerDisplay = "google_chat (Google Chat)"
+		}
+
+		// Exibe em formato "Ficha Técnica"
+		cyan := color.New(color.FgCyan)
+		cyan.Printf("Alias:      %s\n", aliasName)
+		cyan.Printf("Provider:   %s\n", providerDisplay)
+		cyan.Printf("Target:     %s\n", alias.Target)
+		if alias.Name != "" {
+			cyan.Printf("Descrição:  %s\n", alias.Name)
+		} else {
+			cyan.Println("Descrição:  -")
+		}
+
+		return nil
+	},
+}
+
+var aliasUpdateCmd = &cobra.Command{
+	Use:   "update <nome>",
+	Short: "Atualiza um alias existente",
+	Long: `Atualiza um alias existente.
+
+Permite atualização parcial: apenas os campos fornecidos nas flags são atualizados.
+Mantém os outros campos intactos.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		aliasName := args[0]
+
+		// Carrega configuração
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Verifica se alias existe
+		alias := cfg.GetAlias(aliasName)
+		if alias == nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Alias '%s' não encontrado\n", aliasName)
+			return fmt.Errorf("alias '%s' não encontrado", aliasName)
+		}
+
+		// Atualiza apenas campos fornecidos
+		provider, _ := cmd.Flags().GetString("provider")
+		target, _ := cmd.Flags().GetString("target")
+		description, _ := cmd.Flags().GetString("name")
+
+		if cmd.Flags().Changed("provider") {
+			normalizedProvider := normalizeProviderName(provider)
+			if normalizedProvider == "" {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro: Provider '%s' inválido\n", provider)
+				return fmt.Errorf("provider '%s' inválido", provider)
+			}
+			alias.Provider = normalizedProvider
+		}
+
+		if cmd.Flags().Changed("target") {
+			if target == "" {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro: Target não pode estar vazio\n")
+				return fmt.Errorf("target não pode estar vazio")
+			}
+			alias.Target = target
+		}
+
+		if cmd.Flags().Changed("name") {
+			alias.Name = description
+		}
+
+		// Valida provider se foi alterado
+		if cmd.Flags().Changed("provider") {
+			normalizedProvider := normalizeProviderName(alias.Provider)
+			if normalizedProvider == "" {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro: Provider '%s' inválido\n", alias.Provider)
+				return fmt.Errorf("provider '%s' inválido", alias.Provider)
+			}
+		}
+
+		// Atualiza no map
+		cfg.Aliases[aliasName] = *alias
+
+		// Salva configuração
+		if err := config.Save(cfg); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao salvar configuração: %v\n", err)
+			return err
+		}
+
+		green := color.New(color.FgHiGreen, color.Bold)
+		green.Printf("✓ Alias '%s' atualizado com sucesso\n", aliasName)
+
+		return nil
+	},
+}
+
 func init() {
 	aliasAddCmd.Flags().StringP("name", "n", "", "Nome descritivo do alias")
 	aliasRemoveCmd.Flags().BoolP("confirm", "y", false, "Confirma sem perguntar")
+	aliasUpdateCmd.Flags().StringP("provider", "p", "", "Provider (tg, mail, zap, google_chat)")
+	aliasUpdateCmd.Flags().StringP("target", "t", "", "Target (chat_id, email, número, webhook_url)")
+	aliasUpdateCmd.Flags().StringP("name", "n", "", "Nome descritivo do alias")
 
 	aliasCmd.AddCommand(aliasAddCmd)
 	aliasCmd.AddCommand(aliasListCmd)
 	aliasCmd.AddCommand(aliasRemoveCmd)
+	aliasCmd.AddCommand(aliasShowCmd)
+	aliasCmd.AddCommand(aliasUpdateCmd)
 	rootCmd.AddCommand(aliasCmd)
 }
 

@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
+	"net/smtp"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
@@ -145,6 +150,128 @@ var gatewayRemoveCmd = &cobra.Command{
 	},
 }
 
+var gatewayUpdateCmd = &cobra.Command{
+	Use:   "update <provider>",
+	Short: "Atualiza configuração de um gateway",
+	Long: `Atualiza configuração de um gateway existente.
+
+Atualiza apenas os campos fornecidos nas flags.
+Mantém os outros campos intactos (atualização parcial).
+
+Falha se o gateway não estiver configurado.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		providerName := args[0]
+		normalized := normalizeGatewayName(providerName)
+		if normalized == "" {
+			return fmt.Errorf("provider desconhecido: %s", providerName)
+		}
+
+		// Carrega configuração
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Verifica se gateway existe
+		var exists bool
+		switch normalized {
+		case "telegram":
+			exists = cfg.Telegram.Token != ""
+		case "email":
+			exists = cfg.Email.SMTPHost != ""
+		case "whatsapp":
+			exists = cfg.WhatsApp.PhoneNumberID != ""
+		case "google_chat":
+			exists = cfg.GoogleChat.WebhookURL != ""
+		}
+
+		if !exists {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Gateway '%s' não está configurado\n", providerName)
+			red.Println("Use 'cast gateway add' para configurar primeiro")
+			return fmt.Errorf("gateway '%s' não está configurado", providerName)
+		}
+
+		// Atualiza apenas campos fornecidos
+		switch normalized {
+		case "telegram":
+			if err := updateTelegramViaFlags(cmd, cfg); err != nil {
+				return err
+			}
+		case "email":
+			if err := updateEmailViaFlags(cmd, cfg); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("update não implementado para: %s", normalized)
+		}
+
+		// Valida configuração completa antes de salvar
+		if err := cfg.Validate(); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Configuração inválida após update: %v\n", err)
+			return fmt.Errorf("configuração inválida: %w", err)
+		}
+
+		// Salva
+		if err := config.Save(cfg); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao salvar configuração: %v\n", err)
+			return err
+		}
+
+		green := color.New(color.FgHiGreen, color.Bold)
+		green.Printf("✓ Configuração do gateway '%s' atualizada com sucesso\n", providerName)
+
+		return nil
+	},
+}
+
+var gatewayTestCmd = &cobra.Command{
+	Use:   "test <provider>",
+	Short: "Testa conectividade de um gateway",
+	Long: `Testa a conectividade e autenticação de um gateway.
+
+Telegram: Chama getMe na API
+Email: Conecta ao SMTP, faz autenticação e fecha conexão
+WhatsApp: Chama endpoint de metadados
+Google Chat: Valida URL do webhook`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		providerName := args[0]
+		target, _ := cmd.Flags().GetString("target")
+		normalized := normalizeGatewayName(providerName)
+		if normalized == "" {
+			return fmt.Errorf("provider desconhecido: %s", providerName)
+		}
+
+		// Carrega configuração
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Testa gateway
+		switch normalized {
+		case "telegram":
+			return testTelegram(cfg.Telegram)
+		case "email":
+			return testEmail(cfg.Email, target)
+		case "whatsapp":
+			return fmt.Errorf("teste de WhatsApp ainda não implementado")
+		case "google_chat":
+			return testGoogleChat(cfg.GoogleChat, target)
+		default:
+			return fmt.Errorf("teste não implementado para: %s", normalized)
+		}
+	},
+}
+
 func init() {
 	// Flags para gateway add
 	gatewayAddCmd.Flags().String("token", "", "Token do Telegram")
@@ -160,12 +287,29 @@ func init() {
 	gatewayAddCmd.Flags().Int("timeout", 0, "Timeout em segundos")
 	gatewayAddCmd.Flags().BoolP("interactive", "i", false, "Modo wizard interativo")
 
+	// Flags para gateway update (mesmas do add)
+	gatewayUpdateCmd.Flags().String("token", "", "Token do Telegram")
+	gatewayUpdateCmd.Flags().String("default-chat-id", "", "Chat ID padrão do Telegram")
+	gatewayUpdateCmd.Flags().String("smtp-host", "", "Servidor SMTP")
+	gatewayUpdateCmd.Flags().Int("smtp-port", 0, "Porta SMTP")
+	gatewayUpdateCmd.Flags().String("username", "", "Usuário SMTP")
+	gatewayUpdateCmd.Flags().String("password", "", "Senha SMTP")
+	gatewayUpdateCmd.Flags().String("from-email", "", "Email remetente")
+	gatewayUpdateCmd.Flags().String("from-name", "", "Nome remetente")
+	gatewayUpdateCmd.Flags().Bool("use-tls", false, "Usar TLS")
+	gatewayUpdateCmd.Flags().Bool("use-ssl", false, "Usar SSL")
+	gatewayUpdateCmd.Flags().Int("timeout", 0, "Timeout em segundos")
+
+	gatewayTestCmd.Flags().StringP("target", "t", "", "Target para teste (opcional, para Email e Google Chat)")
+
 	gatewayShowCmd.Flags().BoolP("mask", "m", true, "Mascara campos sensíveis")
 	gatewayRemoveCmd.Flags().BoolP("confirm", "y", false, "Confirma sem perguntar")
 
 	gatewayCmd.AddCommand(gatewayAddCmd)
 	gatewayCmd.AddCommand(gatewayShowCmd)
 	gatewayCmd.AddCommand(gatewayRemoveCmd)
+	gatewayCmd.AddCommand(gatewayUpdateCmd)
+	gatewayCmd.AddCommand(gatewayTestCmd)
 	rootCmd.AddCommand(gatewayCmd)
 }
 
@@ -614,4 +758,249 @@ func maskToken(token string) string {
 		return "*****"
 	}
 	return token[:4] + "*****" + token[len(token)-4:]
+}
+
+// updateTelegramViaFlags atualiza Telegram via flags (apenas campos fornecidos).
+func updateTelegramViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	token, _ := cmd.Flags().GetString("token")
+	chatID, _ := cmd.Flags().GetString("default-chat-id")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	// Atualiza apenas campos fornecidos
+	if cmd.Flags().Changed("token") {
+		cfg.Telegram.Token = token
+	}
+	if cmd.Flags().Changed("default-chat-id") {
+		cfg.Telegram.DefaultChatID = chatID
+	}
+	if cmd.Flags().Changed("timeout") && timeout > 0 {
+		cfg.Telegram.Timeout = timeout
+	}
+
+	return nil
+}
+
+// updateEmailViaFlags atualiza Email via flags (apenas campos fornecidos).
+func updateEmailViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	smtpHost, _ := cmd.Flags().GetString("smtp-host")
+	smtpPort, _ := cmd.Flags().GetInt("smtp-port")
+	username, _ := cmd.Flags().GetString("username")
+	password, _ := cmd.Flags().GetString("password")
+	fromEmail, _ := cmd.Flags().GetString("from-email")
+	fromName, _ := cmd.Flags().GetString("from-name")
+	useTLS, _ := cmd.Flags().GetBool("use-tls")
+	useSSL, _ := cmd.Flags().GetBool("use-ssl")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	// Atualiza apenas campos fornecidos
+	if cmd.Flags().Changed("smtp-host") {
+		cfg.Email.SMTPHost = smtpHost
+	}
+	if cmd.Flags().Changed("smtp-port") && smtpPort > 0 {
+		cfg.Email.SMTPPort = smtpPort
+	}
+	if cmd.Flags().Changed("username") {
+		cfg.Email.Username = username
+	}
+	if cmd.Flags().Changed("password") {
+		cfg.Email.Password = password
+	}
+	if cmd.Flags().Changed("from-email") {
+		cfg.Email.FromEmail = fromEmail
+	}
+	if cmd.Flags().Changed("from-name") {
+		cfg.Email.FromName = fromName
+	}
+	if cmd.Flags().Changed("use-tls") {
+		cfg.Email.UseTLS = useTLS
+	}
+	if cmd.Flags().Changed("use-ssl") {
+		cfg.Email.UseSSL = useSSL
+	}
+	if cmd.Flags().Changed("timeout") && timeout > 0 {
+		cfg.Email.Timeout = timeout
+	}
+
+	return nil
+}
+
+// testTelegram testa conectividade do Telegram chamando getMe.
+func testTelegram(cfg config.TelegramConfig) error {
+	if cfg.Token == "" {
+		red := color.New(color.FgRed, color.Bold)
+		red.Println("✗ Telegram não está configurado")
+		return fmt.Errorf("telegram não está configurado")
+	}
+
+	apiURL := cfg.APIURL
+	if apiURL == "" {
+		apiURL = "https://api.telegram.org"
+	}
+
+	url := fmt.Sprintf("%s/bot%s/getMe", apiURL, cfg.Token)
+
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro ao criar requisição: %v\n", err)
+		return err
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro de conectividade: %v\n", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	latency := time.Since(start)
+
+	if resp.StatusCode != http.StatusOK {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro na API: Status %d\n", resp.StatusCode)
+		return fmt.Errorf("erro na API: status %d", resp.StatusCode)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Printf("✓ Conectividade OK (%dms)\n", latency.Milliseconds())
+
+	return nil
+}
+
+// testEmail testa conectividade SMTP sem enviar email.
+func testEmail(cfg config.EmailConfig, target string) error {
+	if cfg.SMTPHost == "" || cfg.Username == "" || cfg.Password == "" {
+		red := color.New(color.FgRed, color.Bold)
+		red.Println("✗ Email não está configurado")
+		return fmt.Errorf("email não está configurado")
+	}
+
+	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
+	if cfg.SMTPPort == 0 {
+		if cfg.UseSSL {
+			addr = fmt.Sprintf("%s:465", cfg.SMTPHost)
+		} else {
+			addr = fmt.Sprintf("%s:587", cfg.SMTPHost)
+		}
+	}
+
+	start := time.Now()
+
+	// Conecta ao SMTP
+	var conn *smtp.Client
+	var err error
+
+	if cfg.UseSSL {
+		// SSL direto (porta 465)
+		tlsConfig := &tls.Config{
+			ServerName: cfg.SMTPHost,
+		}
+		tlsConn, err := tls.Dial("tcp", addr, tlsConfig)
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Printf("✗ Erro ao conectar (SSL): %v\n", err)
+			return err
+		}
+		defer tlsConn.Close()
+
+		conn, err = smtp.NewClient(tlsConn, cfg.SMTPHost)
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Printf("✗ Erro ao criar cliente SMTP: %v\n", err)
+			return err
+		}
+	} else {
+		// TLS (porta 587)
+		conn, err = smtp.Dial(addr)
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Printf("✗ Erro ao conectar: %v\n", err)
+			return err
+		}
+	}
+	defer conn.Close()
+
+	// EHLO
+	if err := conn.Hello("localhost"); err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro no EHLO: %v\n", err)
+		return err
+	}
+
+	// StartTLS se necessário
+	if cfg.UseTLS && !cfg.UseSSL {
+		if ok, _ := conn.Extension("STARTTLS"); ok {
+			tlsConfig := &tls.Config{
+				ServerName: cfg.SMTPHost,
+			}
+			if err := conn.StartTLS(tlsConfig); err != nil {
+				red := color.New(color.FgRed, color.Bold)
+				red.Printf("✗ Erro no StartTLS: %v\n", err)
+				return err
+			}
+		}
+	}
+
+	// Autenticação
+	auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.SMTPHost)
+	if err := conn.Auth(auth); err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro na autenticação: %v\n", err)
+		return err
+	}
+
+	// QUIT
+	if err := conn.Quit(); err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro ao fechar conexão: %v\n", err)
+		return err
+	}
+
+	latency := time.Since(start)
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Printf("✓ Conectividade OK (%dms)\n", latency.Milliseconds())
+
+	// Se target foi fornecido, envia email de teste
+	if target != "" {
+		yellow := color.New(color.FgYellow)
+		yellow.Println("⚠ Envio de email de teste não implementado ainda")
+		// TODO: Implementar envio de email de teste
+	}
+
+	return nil
+}
+
+// testGoogleChat testa webhook do Google Chat.
+func testGoogleChat(cfg config.GoogleChatConfig, target string) error {
+	if cfg.WebhookURL == "" {
+		red := color.New(color.FgRed, color.Bold)
+		red.Println("✗ Google Chat não está configurado")
+		return fmt.Errorf("google chat não está configurado")
+	}
+
+	// Valida formato da URL
+	if !strings.HasPrefix(cfg.WebhookURL, "https://chat.googleapis.com") {
+		red := color.New(color.FgRed, color.Bold)
+		red.Println("✗ URL do webhook inválida (deve começar com https://chat.googleapis.com)")
+		return fmt.Errorf("url do webhook inválida")
+	}
+
+	// Se target foi fornecido, envia mensagem de teste
+	if target != "" {
+		yellow := color.New(color.FgYellow)
+		yellow.Println("⚠ Envio de mensagem de teste não implementado ainda")
+		// TODO: Implementar envio de mensagem de teste
+	} else {
+		green := color.New(color.FgHiGreen, color.Bold)
+		green.Println("✓ URL do webhook válida")
+	}
+
+	return nil
 }

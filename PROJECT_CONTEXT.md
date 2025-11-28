@@ -1,7 +1,7 @@
 # CAST - PROJECT STATUS
 
 **Última atualização:** 2025-01-XX
-**Versão:** 0.3.0 (Fase 03 - Configuration Management)
+**Versão:** 0.3.5 (Fase 03.5 - Refinements & Gaps)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
@@ -56,6 +56,17 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Persistência em YAML/JSON
 - [x] Testes unitários básicos (3 testes)
 - [x] Help em português para todos os comandos
+
+### ✅ Fase 03.5: Refinements & Gaps
+- [x] Função `MergeConfig()` para merge profundo
+- [x] Função `BackupConfig()` para backup automático
+- [x] Comando `config export` (stdout/arquivo, mascaramento)
+- [x] Comando `config import` (merge/substituição, backup)
+- [x] Comando `config reload` (releitura e validação)
+- [x] Comando `gateway update` (atualização parcial)
+- [x] Comando `gateway test` (Telegram getMe, Email SMTP)
+- [x] Comando `alias show` (formato ficha técnica)
+- [x] Comando `alias update` (atualização parcial)
 
 ---
 

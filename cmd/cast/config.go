@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
 	"github.com/eduardoalcantara/cast/internal/config"
+	"github.com/spf13/viper"
 )
 
 var configCmd = &cobra.Command{
@@ -117,12 +120,269 @@ e se os valores estão dentro dos limites permitidos.`,
 	},
 }
 
+var configExportCmd = &cobra.Command{
+	Use:   "export",
+	Short: "Exporta a configuração",
+	Long: `Exporta a configuração atual do CAST.
+
+Por padrão, imprime YAML no stdout.
+Use --output para salvar em arquivo.
+Use --force para sobrescrever arquivo existente.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mask, _ := cmd.Flags().GetBool("mask")
+		output, _ := cmd.Flags().GetString("output")
+		force, _ := cmd.Flags().GetBool("force")
+		format, _ := cmd.Flags().GetString("format")
+
+		// Carrega configuração
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Valida antes de exportar
+		if err := cfg.Validate(); err != nil {
+			yellow := color.New(color.FgYellow)
+			yellow.Printf("⚠ Aviso: Configuração inválida: %v\n", err)
+			yellow.Println("Exportando mesmo assim (pode ser útil para debug)...")
+		}
+
+		// Cria cópia para mascarar se necessário
+		displayCfg := *cfg
+		if mask {
+			maskSensitiveData(&displayCfg)
+		}
+
+		// Determina formato
+		if format == "" {
+			if output != "" {
+				ext := strings.ToLower(filepath.Ext(output))
+				switch ext {
+				case ".json":
+					format = "json"
+				case ".yaml", ".yml":
+					format = "yaml"
+				default:
+					format = "yaml"
+				}
+			} else {
+				format = "yaml"
+			}
+		}
+
+		// Serializa
+		var data []byte
+		switch format {
+		case "json":
+			var err error
+			data, err = json.MarshalIndent(displayCfg, "", "  ")
+			if err != nil {
+				return fmt.Errorf("erro ao serializar JSON: %w", err)
+			}
+		case "yaml", "yml":
+			var err error
+			data, err = yaml.Marshal(displayCfg)
+			if err != nil {
+				return fmt.Errorf("erro ao serializar YAML: %w", err)
+			}
+		default:
+			return fmt.Errorf("formato não suportado: %s (use yaml ou json)", format)
+		}
+
+		// Escreve saída
+		if output != "" {
+			// Verifica se arquivo existe
+			if _, err := os.Stat(output); err == nil && !force {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Arquivo já existe: %s\n", output)
+				red.Println("Use --force para sobrescrever")
+				return fmt.Errorf("arquivo já existe: %s", output)
+			}
+
+			if err := os.WriteFile(output, data, 0600); err != nil {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro ao salvar arquivo: %v\n", err)
+				return err
+			}
+
+			green := color.New(color.FgHiGreen, color.Bold)
+			green.Printf("✓ Configuração exportada para: %s\n", output)
+		} else {
+			// Imprime no stdout
+			fmt.Print(string(data))
+		}
+
+		return nil
+	},
+}
+
+var configImportCmd = &cobra.Command{
+	Use:   "import <arquivo>",
+	Short: "Importa configuração de um arquivo",
+	Long: `Importa configuração de um arquivo.
+
+Por padrão, substitui completamente a configuração atual.
+Use --merge para mesclar com a configuração existente.
+Um backup automático é criado antes da importação.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		importFile := args[0]
+		merge, _ := cmd.Flags().GetBool("merge")
+
+		// Verifica se arquivo existe
+		if _, err := os.Stat(importFile); os.IsNotExist(err) {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Arquivo não encontrado: %s\n", importFile)
+			return fmt.Errorf("arquivo não encontrado: %s", importFile)
+		}
+
+		// Detecta formato pela extensão
+		ext := strings.ToLower(filepath.Ext(importFile))
+		var format string
+		switch ext {
+		case ".json":
+			format = "json"
+		case ".yaml", ".yml":
+			format = "yaml"
+		default:
+			format = "yaml" // Assume YAML se não conseguir detectar
+		}
+
+		// Lê arquivo
+		data, err := os.ReadFile(importFile)
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao ler arquivo: %v\n", err)
+			return err
+		}
+
+		// Deserializa
+		var importedCfg config.Config
+		switch format {
+		case "json":
+			if err := json.Unmarshal(data, &importedCfg); err != nil {
+				return fmt.Errorf("erro ao fazer parse JSON: %w", err)
+			}
+		case "yaml", "yml":
+			if err := yaml.Unmarshal(data, &importedCfg); err != nil {
+				return fmt.Errorf("erro ao fazer parse YAML: %w", err)
+			}
+		default:
+			return fmt.Errorf("formato não suportado: %s", format)
+		}
+
+		// Carrega configuração atual
+		currentCfg, err := config.LoadConfig()
+		if err != nil {
+			// Se não existe, cria nova
+			currentCfg = &config.Config{}
+		}
+
+		// Faz merge ou substituição
+		if merge {
+			// Merge profundo
+			config.MergeConfig(&importedCfg, currentCfg)
+		} else {
+			// Substituição total
+			currentCfg = &importedCfg
+		}
+
+		// Valida antes de salvar
+		if err := currentCfg.Validate(); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Configuração inválida após importação: %v\n", err)
+			red.Println("Operação abortada. Nenhuma alteração foi salva.")
+			return fmt.Errorf("configuração inválida: %w", err)
+		}
+
+		// Cria backup antes de salvar
+		backupFile, err := config.BackupConfig()
+		if err != nil {
+			yellow := color.New(color.FgYellow)
+			yellow.Printf("⚠ Aviso: Não foi possível criar backup: %v\n", err)
+			yellow.Println("Continuando mesmo assim...")
+		} else {
+			cyan := color.New(color.FgCyan)
+			cyan.Printf("✓ Backup criado: %s\n", backupFile)
+		}
+
+		// Salva configuração
+		if err := config.Save(currentCfg); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao salvar configuração: %v\n", err)
+			return err
+		}
+
+		green := color.New(color.FgHiGreen, color.Bold)
+		if merge {
+			green.Println("✓ Configuração importada e mesclada com sucesso")
+		} else {
+			green.Println("✓ Configuração importada e substituída com sucesso")
+		}
+
+		return nil
+	},
+}
+
+var configReloadCmd = &cobra.Command{
+	Use:   "reload",
+	Short: "Recarrega a configuração do disco",
+	Long: `Recarrega a configuração do arquivo do disco.
+
+Útil para verificar se o arquivo é legível após edição manual.
+Valida a configuração após recarregar.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Força releitura do arquivo
+		// Limpa configuração do Viper
+		viper.Reset()
+
+		// Recarrega usando Load()
+		if err := config.Load(); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao recarregar configuração: %v\n", err)
+			return err
+		}
+
+		// Carrega e valida
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Valida
+		if err := cfg.Validate(); err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Configuração inválida: %v\n", err)
+			return err
+		}
+
+		green := color.New(color.FgHiGreen, color.Bold)
+		green.Println("✓ Configuração recarregada e válida")
+
+		return nil
+	},
+}
+
 func init() {
 	configShowCmd.Flags().BoolP("mask", "m", true, "Mascara campos sensíveis")
 	configShowCmd.Flags().StringP("format", "f", "yaml", "Formato de saída (yaml, json)")
 
+	configExportCmd.Flags().BoolP("mask", "m", true, "Mascara campos sensíveis")
+	configExportCmd.Flags().StringP("output", "o", "", "Arquivo de saída (padrão: stdout)")
+	configExportCmd.Flags().BoolP("force", "f", false, "Sobrescreve arquivo existente")
+	configExportCmd.Flags().String("format", "", "Formato de saída (yaml, json). Auto-detecta pela extensão se --output for usado")
+
+	configImportCmd.Flags().BoolP("merge", "m", false, "Mescla com configuração existente ao invés de substituir")
+
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configValidateCmd)
+	configCmd.AddCommand(configExportCmd)
+	configCmd.AddCommand(configImportCmd)
+	configCmd.AddCommand(configReloadCmd)
 	rootCmd.AddCommand(configCmd)
 }
 
