@@ -1,0 +1,496 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/fatih/color"
+)
+
+// ============================================================================
+// HELP FUNCTIONS - Controle total sobre mensagens exibidas
+// ============================================================================
+
+// ShowRootHelp exibe o help do comando raiz (cast).
+func ShowRootHelp() {
+	printBanner()
+	fmt.Println()
+	fmt.Println("Ferramenta CLI standalone para envio agnóstico de mensagens (Fire & Forget).")
+	fmt.Println("Suporta múltiplos canais: Telegram, WhatsApp, Email, Google Chat.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast [flags]")
+	fmt.Println("  cast [comando]")
+	fmt.Println()
+	fmt.Println("Comandos Disponíveis:")
+	fmt.Println("  send        Envia uma mensagem através do provider especificado")
+	fmt.Println("  alias       Gerencia aliases (atalhos para provider + target)")
+	fmt.Println("  gateway     Gerencia configurações de gateways")
+	fmt.Println("  config      Comandos gerais de configuração")
+	fmt.Println("  completion  Gera script de autocompletar para o shell especificado")
+	fmt.Println("  help        Ajuda sobre qualquer comando")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  -h, --help   Ajuda para cast")
+	fmt.Println()
+	fmt.Println("Use \"cast [comando] --help\" para mais informações sobre um comando.")
+}
+
+// ShowSendHelp exibe o help do comando send.
+func ShowSendHelp() {
+	fmt.Println("Envia uma mensagem através do provider especificado (telegram, whatsapp, email, etc).")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast send [provider] [target] [message]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  provider  - Nome do provider (tg, mail, zap, google_chat) ou alias")
+	fmt.Println("  target    - Destinatário (chat_id, email, número, webhook_url) ou 'me' para padrão")
+	fmt.Println("  message   - Mensagem a ser enviada")
+	fmt.Println()
+	fmt.Println("A ordem de precedência para configuração é:")
+	fmt.Println("  1. Variáveis de Ambiente (CAST_*)")
+	fmt.Println("  2. Arquivo Local (cast.*)")
+	fmt.Println()
+	fmt.Println("Múltiplos Recipientes:")
+	fmt.Println("  Você pode enviar para múltiplos recipientes separando-os por vírgula (,) ou ponto-e-vírgula (;):")
+	fmt.Println("  - cast send mail \"user1@exemplo.com,user2@exemplo.com\" \"Mensagem\"")
+	fmt.Println("  - cast send tg \"123456789;987654321\" \"Mensagem\"")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  # Telegram (usando alias 'me' definido no config)")
+	fmt.Println("  cast send tg me \"Deploy finalizado com sucesso\"")
+	fmt.Println()
+	fmt.Println("  # Telegram para múltiplos destinatários")
+	fmt.Println("  cast send tg \"123456789,987654321\" \"Mensagem para todos\"")
+	fmt.Println()
+	fmt.Println("  # WhatsApp (formato internacional)")
+	fmt.Println("  cast send zap 5511999998888 \"Alerta: Disco cheio\"")
+	fmt.Println()
+	fmt.Println("  # Email para um destinatário")
+	fmt.Println("  cast send mail admin@empresa.com \"Bom dia!\"")
+	fmt.Println()
+	fmt.Println("  # Email para múltiplos destinatários")
+	fmt.Println("  cast send mail \"admin@empresa.com;dev@empresa.com\" \"Relatório Diário\"")
+}
+
+// ShowAliasHelp exibe o help do comando alias.
+func ShowAliasHelp() {
+	fmt.Println("Gerencia aliases que permitem usar nomes curtos no lugar de provider e target.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast alias [comando]")
+	fmt.Println()
+	fmt.Println("Comandos Disponíveis:")
+	fmt.Println("  add     Adiciona um novo alias")
+	fmt.Println("  list    Lista todos os aliases configurados")
+	fmt.Println("  remove  Remove um alias")
+	fmt.Println("  show    Mostra detalhes de um alias específico")
+	fmt.Println("  update  Atualiza um alias existente")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast alias add me tg \"123456789\" --name \"Meu Telegram\"")
+	fmt.Println("  cast alias list")
+	fmt.Println("  cast alias remove me")
+	fmt.Println("  cast alias show me")
+	fmt.Println("  cast alias update me --provider mail --target \"admin@empresa.com\"")
+}
+
+// ShowAliasAddHelp exibe o help do comando alias add.
+func ShowAliasAddHelp() {
+	fmt.Println("Adiciona um novo alias que mapeia um nome para um provider e target.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast alias add <nome> <provider> <target> [flags]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  nome     - Nome do alias (ex: me, team, alerts)")
+	fmt.Println("  provider - Provider (tg, mail, zap, google_chat)")
+	fmt.Println("  target   - Target (chat_id, email, número, webhook_url)")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  --name string    Nome descritivo do alias (opcional)")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast alias add me tg \"123456789\" --name \"Meu Telegram\"")
+	fmt.Println("  cast alias add team mail \"team@empresa.com\" --name \"Time de Desenvolvimento\"")
+	fmt.Println("  cast alias add alerts zap \"5511999998888\"")
+}
+
+// ShowAliasListHelp exibe o help do comando alias list.
+func ShowAliasListHelp() {
+	fmt.Println("Lista todos os aliases configurados.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast alias list")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast alias list")
+}
+
+// ShowAliasRemoveHelp exibe o help do comando alias remove.
+func ShowAliasRemoveHelp() {
+	fmt.Println("Remove um alias da configuração.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast alias remove <nome>")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  nome  - Nome do alias a ser removido")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast alias remove me")
+}
+
+// ShowAliasShowHelp exibe o help do comando alias show.
+func ShowAliasShowHelp() {
+	fmt.Println("Mostra detalhes de um alias específico em formato 'Ficha Técnica'.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast alias show <nome>")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  nome  - Nome do alias a ser exibido")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast alias show me")
+}
+
+// ShowAliasUpdateHelp exibe o help do comando alias update.
+func ShowAliasUpdateHelp() {
+	fmt.Println("Atualiza um alias existente. Permite atualização parcial (apenas campos especificados).")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast alias update <nome> [flags]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  nome  - Nome do alias a ser atualizado")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  --provider string  Novo provider (tg, mail, zap, google_chat)")
+	fmt.Println("  --target string    Novo target (chat_id, email, número, webhook_url)")
+	fmt.Println("  --name string      Novo nome descritivo")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast alias update me --target \"987654321\"")
+	fmt.Println("  cast alias update team --provider zap --target \"5511999998888\"")
+}
+
+// ShowGatewayHelp exibe o help do comando gateway.
+func ShowGatewayHelp() {
+	fmt.Println("Gerencia configurações de gateways (Telegram, WhatsApp, Email, Google Chat).")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast gateway [comando]")
+	fmt.Println()
+	fmt.Println("Comandos Disponíveis:")
+	fmt.Println("  add     Adiciona/Configura um gateway")
+	fmt.Println("  show    Mostra configuração de um gateway")
+	fmt.Println("  remove  Remove configuração de um gateway")
+	fmt.Println("  update  Atualiza configuração de um gateway")
+	fmt.Println("  test    Testa conectividade de um gateway")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast gateway add telegram --token \"123456:ABC\" --default-chat-id \"123456789\"")
+	fmt.Println("  cast gateway add email --interactive")
+	fmt.Println("  cast gateway show telegram")
+	fmt.Println("  cast gateway test telegram")
+}
+
+// ShowGatewayAddHelp exibe o help do comando gateway add.
+func ShowGatewayAddHelp() {
+	fmt.Println("Adiciona ou configura um gateway.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast gateway add [provider] [flags]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  provider  - Nome do provider (telegram, email, whatsapp, google_chat)")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  --interactive          Modo wizard interativo")
+	fmt.Println()
+	fmt.Println("  # Telegram:")
+	fmt.Println("  --token string         Token do bot do Telegram")
+	fmt.Println("  --default-chat-id string  Chat ID padrão")
+	fmt.Println("  --api-url string       URL da API (opcional, padrão: https://api.telegram.org)")
+	fmt.Println("  --timeout int          Timeout em segundos (opcional, padrão: 30)")
+	fmt.Println()
+	fmt.Println("  # Email:")
+	fmt.Println("  --smtp-host string     Servidor SMTP")
+	fmt.Println("  --smtp-port int        Porta SMTP (587 para TLS, 465 para SSL)")
+	fmt.Println("  --username string       Usuário SMTP")
+	fmt.Println("  --password string       Senha SMTP")
+	fmt.Println("  --from-email string     Email remetente")
+	fmt.Println("  --from-name string      Nome remetente (opcional)")
+	fmt.Println("  --use-tls              Usar TLS (porta 587)")
+	fmt.Println("  --use-ssl              Usar SSL (porta 465)")
+	fmt.Println("  --timeout int           Timeout em segundos (opcional, padrão: 30)")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast gateway add telegram --token \"123456:ABC\" --default-chat-id \"123456789\"")
+	fmt.Println("  cast gateway add email --interactive")
+	fmt.Println("  cast gateway add email --smtp-host smtp.gmail.com --smtp-port 587 --username user@gmail.com --password pass --from-email user@gmail.com --use-tls")
+}
+
+// ShowGatewayShowHelp exibe o help do comando gateway show.
+func ShowGatewayShowHelp() {
+	fmt.Println("Mostra a configuração de um gateway específico.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast gateway show <provider>")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  provider  - Nome do provider (telegram, email, whatsapp, google_chat)")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast gateway show telegram")
+	fmt.Println("  cast gateway show email")
+}
+
+// ShowGatewayRemoveHelp exibe o help do comando gateway remove.
+func ShowGatewayRemoveHelp() {
+	fmt.Println("Remove a configuração de um gateway.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast gateway remove <provider>")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  provider  - Nome do provider a ser removido")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast gateway remove telegram")
+}
+
+// ShowGatewayUpdateHelp exibe o help do comando gateway update.
+func ShowGatewayUpdateHelp() {
+	fmt.Println("Atualiza a configuração de um gateway existente. Permite atualização parcial.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast gateway update <provider> [flags]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  provider  - Nome do provider a ser atualizado")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  # Telegram:")
+	fmt.Println("  --token string         Novo token do bot")
+	fmt.Println("  --default-chat-id string  Novo chat ID padrão")
+	fmt.Println("  --api-url string       Nova URL da API")
+	fmt.Println("  --timeout int           Novo timeout em segundos")
+	fmt.Println()
+	fmt.Println("  # Email:")
+	fmt.Println("  --smtp-host string     Novo servidor SMTP")
+	fmt.Println("  --smtp-port int        Nova porta SMTP")
+	fmt.Println("  --username string      Novo usuário SMTP")
+	fmt.Println("  --password string      Nova senha SMTP")
+	fmt.Println("  --from-email string    Novo email remetente")
+	fmt.Println("  --from-name string     Novo nome remetente")
+	fmt.Println("  --use-tls              Usar TLS")
+	fmt.Println("  --use-ssl              Usar SSL")
+	fmt.Println("  --timeout int          Novo timeout em segundos")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast gateway update telegram --default-chat-id \"987654321\"")
+	fmt.Println("  cast gateway update email --smtp-port 465 --use-ssl")
+}
+
+// ShowGatewayTestHelp exibe o help do comando gateway test.
+func ShowGatewayTestHelp() {
+	fmt.Println("Testa a conectividade e autenticação de um gateway.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast gateway test <provider>")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  provider  - Nome do provider a ser testado")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast gateway test telegram")
+	fmt.Println("  cast gateway test email")
+	fmt.Println()
+	fmt.Println("Nota:")
+	fmt.Println("  - Telegram: Testa chamada getMe da API")
+	fmt.Println("  - Email: Testa conexão SMTP e autenticação")
+}
+
+// ShowConfigHelp exibe o help do comando config.
+func ShowConfigHelp() {
+	fmt.Println("Gerencia a configuração do CAST.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast config [comando]")
+	fmt.Println()
+	fmt.Println("Comandos Disponíveis:")
+	fmt.Println("  show      Mostra a configuração atual")
+	fmt.Println("  validate  Valida a configuração atual")
+	fmt.Println("  export    Exporta a configuração para um arquivo")
+	fmt.Println("  import    Importa configuração de um arquivo")
+	fmt.Println("  reload    Recarrega a configuração do disco")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast config show")
+	fmt.Println("  cast config validate")
+	fmt.Println("  cast config export --output config-backup.yaml")
+}
+
+// ShowConfigShowHelp exibe o help do comando config show.
+func ShowConfigShowHelp() {
+	fmt.Println("Mostra a configuração atual do CAST.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast config show [flags]")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  --mask        Mascara dados sensíveis (tokens, senhas) - padrão: true")
+	fmt.Println("  --no-mask     Não mascara dados sensíveis")
+	fmt.Println("  --source      Mostra origem da configuração (arquivo/ENV)")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast config show")
+	fmt.Println("  cast config show --no-mask")
+	fmt.Println("  cast config show --source")
+}
+
+// ShowConfigValidateHelp exibe o help do comando config validate.
+func ShowConfigValidateHelp() {
+	fmt.Println("Valida a configuração atual do CAST.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast config validate")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast config validate")
+	fmt.Println()
+	fmt.Println("Verifica:")
+	fmt.Println("  - Campos obrigatórios preenchidos")
+	fmt.Println("  - Timeouts válidos")
+	fmt.Println("  - Exclusividade TLS/SSL")
+	fmt.Println("  - Formato de URLs e emails")
+}
+
+// ShowConfigExportHelp exibe o help do comando config export.
+func ShowConfigExportHelp() {
+	fmt.Println("Exporta a configuração atual para stdout ou arquivo.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast config export [flags]")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  --output string   Arquivo de saída (opcional, padrão: stdout)")
+	fmt.Println("  --mask            Mascara dados sensíveis - padrão: true")
+	fmt.Println("  --no-mask         Não mascara dados sensíveis")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast config export")
+	fmt.Println("  cast config export --output config-backup.yaml")
+	fmt.Println("  cast config export --output backup.yaml --no-mask")
+}
+
+// ShowConfigImportHelp exibe o help do comando config import.
+func ShowConfigImportHelp() {
+	fmt.Println("Importa configuração de um arquivo (YAML, JSON ou Properties).")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast config import <arquivo> [flags]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  arquivo  - Caminho do arquivo de configuração")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  --merge    Mescla com configuração existente (ao invés de substituir)")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast config import config-backup.yaml")
+	fmt.Println("  cast config import new-config.yaml --merge")
+	fmt.Println()
+	fmt.Println("Nota:")
+	fmt.Println("  - Cria backup automático (cast.yaml.bak) antes de importar")
+	fmt.Println("  - Detecta formato automaticamente pela extensão (.yaml, .json, .properties)")
+}
+
+// ShowConfigReloadHelp exibe o help do comando config reload.
+func ShowConfigReloadHelp() {
+	fmt.Println("Recarrega a configuração do disco e valida.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast config reload")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast config reload")
+	fmt.Println()
+	fmt.Println("Nota:")
+	fmt.Println("  - Lê novamente o arquivo de configuração")
+	fmt.Println("  - Aplica variáveis de ambiente")
+	fmt.Println("  - Valida a configuração carregada")
+}
+
+// ShowCompletionHelp exibe o help do comando completion.
+func ShowCompletionHelp() {
+	fmt.Println("Gera script de autocompletar para o shell especificado (bash, zsh, fish, powershell).")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast completion [shell]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  shell  - Shell alvo (bash, zsh, fish, powershell)")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  # Bash (Linux/Mac)")
+	fmt.Println("  cast completion bash > /etc/bash_completion.d/cast")
+	fmt.Println("  source /etc/bash_completion.d/cast")
+	fmt.Println()
+	fmt.Println("  # PowerShell (Windows)")
+	fmt.Println("  cast completion powershell | Out-File -FilePath $PROFILE")
+	fmt.Println()
+	fmt.Println("  # Zsh (Mac/Linux)")
+	fmt.Println("  cast completion zsh > \"${fpath[1]}/_cast\"")
+	fmt.Println("  source \"${fpath[1]}/_cast\"")
+	fmt.Println()
+	fmt.Println("Permite usar Tab para completar comandos e flags automaticamente.")
+}
+
+// ShowHelpHelp exibe o help do comando help.
+func ShowHelpHelp() {
+	fmt.Println("Ajuda sobre qualquer comando do CAST.")
+	fmt.Println()
+	fmt.Println("Uso:")
+	fmt.Println("  cast help [comando]")
+	fmt.Println()
+	fmt.Println("Argumentos:")
+	fmt.Println("  comando  - Nome do comando sobre o qual deseja ajuda")
+	fmt.Println()
+	fmt.Println("Exemplos:")
+	fmt.Println("  cast help send")
+	fmt.Println("  cast help gateway add")
+	fmt.Println("  cast gateway add --help")
+	fmt.Println()
+	fmt.Println("Fornece informações detalhadas sobre comandos, subcomandos e flags.")
+}
+
+// ShowErrorHelp exibe mensagem de erro customizada para comando desconhecido.
+func ShowErrorHelp(command string) {
+	red := color.New(color.FgRed, color.Bold)
+	red.Printf("✗ Erro: comando desconhecido \"%s\"\n", command)
+	fmt.Println()
+	fmt.Println("Execute 'cast --help' para ver os comandos disponíveis.")
+	os.Exit(1)
+}
+
+// ShowInvalidArgsHelp exibe mensagem de erro para argumentos inválidos.
+func ShowInvalidArgsHelp(expected string, received int) {
+	red := color.New(color.FgRed, color.Bold)
+	red.Printf("✗ Erro: esperado %s, recebido %d argumento(s)\n", expected, received)
+	fmt.Println()
+	fmt.Println("Execute 'cast [comando] --help' para ver a sintaxe correta.")
+	os.Exit(1)
+}
+
+// ShowUnknownFlagHelp exibe mensagem de erro para flag desconhecida.
+func ShowUnknownFlagHelp(flag string) {
+	red := color.New(color.FgRed, color.Bold)
+	red.Printf("✗ Erro: flag desconhecida: %s\n", flag)
+	fmt.Println()
+	fmt.Println("Execute 'cast [comando] --help' para ver as flags disponíveis.")
+	os.Exit(1)
+}

@@ -1,7 +1,7 @@
 # CAST - PROJECT STATUS
 
 **Última atualização:** 2025-01-XX
-**Versão:** 0.3.5 (Fase 03.5 - Refinements & Gaps)
+**Versão:** 0.3.6 (Fase 03.6 - Help Customizado)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
@@ -67,6 +67,9 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Comando `gateway test` (Telegram getMe, Email SMTP)
 - [x] Comando `alias show` (formato ficha técnica)
 - [x] Comando `alias update` (atualização parcial)
+- [x] Sistema de help customizado (`help.go`) com controle total sobre mensagens
+- [x] Substituição completa do help do Cobra por funções `print()` customizadas
+- [x] Todas as mensagens de help em português (100% traduzido)
 
 ---
 
@@ -91,7 +94,8 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 
 #### CLI Core
 - [x] Banner ASCII (Verde Claro)
-- [x] Help em português
+- [x] Help customizado em português (100% traduzido, sem dependência do Cobra)
+- [x] Sistema de help com `print()` puro para controle total (`help.go`)
 - [x] Comando `send` com validação de argumentos
 - [x] Mensagens de erro em português
 - [x] Exit codes: 0 (sucesso), 1 (erro), 2 (config)
@@ -161,26 +165,36 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Subcomando `add` com validação
 - [x] Subcomando `list` formatado
 - [x] Subcomando `remove` com confirmação
+- [x] Subcomando `show` (formato ficha técnica)
+- [x] Subcomando `update` (atualização parcial)
 - [x] Validação de provider e target
 
 ### ✅ Comando Config (`cmd/cast/config.go`)
 - [x] Subcomando `show` com mascaramento
 - [x] Subcomando `validate` com resumo visual
+- [x] Subcomando `export` (stdout/arquivo, mascaramento)
+- [x] Subcomando `import` (merge/substituição, backup)
+- [x] Subcomando `reload` (releitura e validação)
 - [x] Suporte a formatos YAML e JSON
 
 ### ✅ Comando Gateway (`cmd/cast/gateway.go`)
 - [x] Subcomando `add` (flags e wizard)
 - [x] Subcomando `show` com formatação
 - [x] Subcomando `remove` com confirmação
+- [x] Subcomando `update` (atualização parcial)
+- [x] Subcomando `test` (Telegram getMe, Email SMTP)
 - [x] Wizard interativo para Telegram e Email
 - [x] Validação de campos obrigatórios
 
+### ✅ Sistema de Help Customizado (`cmd/cast/help.go`)
+- [x] Arquivo separado com funções de help usando `print()` puro
+- [x] Controle total sobre todas as mensagens exibidas
+- [x] 20+ funções de help para todos os comandos e subcomandos
+- [x] Funções de erro customizadas (comando desconhecido, argumentos inválidos, flag desconhecida)
+- [x] Integração completa via `SetHelpFunc()` em todos os comandos
+- [x] 100% das mensagens em português (sem dependência do help do Cobra)
+
 ### ⚠️ Pendências Fase 03
-- [ ] `cast config export/import` (aguardando especificações)
-- [ ] `cast config reload` (aguardando especificações)
-- [ ] `cast gateway update` (aguardando especificações)
-- [ ] `cast gateway test` (aguardando especificações)
-- [ ] `cast alias show/update` (não implementado)
 - [ ] Flag `--source` no config show (não implementado)
 - [ ] Wizard para WhatsApp e Google Chat (providers não existem ainda)
 
@@ -257,11 +271,12 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 ```
 cmd/cast/
   main.go      ✅ Entrypoint com config.Load()
-  root.go      ✅ Comando raiz + banner + help PT
+  root.go      ✅ Comando raiz + banner + help customizado
   send.go      ✅ Comando send (integração completa)
-  alias.go     ✅ Comando alias (add, list, remove)
-  config.go    ✅ Comando config (show, validate)
-  gateway.go   ✅ Comando gateway (add, show, remove)
+  alias.go     ✅ Comando alias (add, list, remove, show, update)
+  config.go    ✅ Comando config (show, validate, export, import, reload)
+  gateway.go   ✅ Comando gateway (add, show, remove, update, test)
+  help.go      ✅ Sistema de help customizado (print() puro, 100% PT)
 
 internal/
   config/
@@ -336,11 +351,12 @@ type Config struct {
 ## 📈 MÉTRICAS
 
 ### Código
-- **Linhas de código:** ~2.100
-- **Arquivos Go:** 14
+- **Linhas de código:** ~2.500
+- **Arquivos Go:** 15
 - **Arquivos de Teste:** 5
 - **Comandos CLI:** 5 (root, send, alias, config, gateway)
-- **Subcomandos:** 8 (alias: 3, config: 2, gateway: 3)
+- **Subcomandos:** 13 (alias: 5, config: 5, gateway: 5)
+- **Funções de Help:** 20+ funções customizadas em `help.go`
 - **Providers:** 2 implementados (Telegram, Email), 2 pendentes (WhatsApp, Google Chat)
 
 ### Testes
