@@ -1,7 +1,7 @@
 # CAST - PROJECT STATUS
 
 **Última atualização:** 2025-01-XX
-**Versão:** 0.3.6 (Fase 03.6 - Help Customizado)
+**Versão:** 0.4.0 (Fase 04 - Advanced Drivers)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
@@ -70,6 +70,18 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Sistema de help customizado (`help.go`) com controle total sobre mensagens
 - [x] Substituição completa do help do Cobra por funções `print()` customizadas
 - [x] Todas as mensagens de help em português (100% traduzido)
+
+### ✅ Fase 04: Advanced Drivers
+- [x] Driver WhatsApp (`whatsapp.go`) - Meta Cloud API com envio real
+- [x] Driver Google Chat (`googlechat.go`) - Incoming Webhooks
+- [x] Integração completa na Factory
+- [x] Wizard interativo para WhatsApp
+- [x] Wizard interativo para Google Chat
+- [x] Flags completas para configuração via CLI
+- [x] Testes de conectividade (`gateway test`)
+- [x] Testes unitários (11 novos testes)
+- [x] Tratamento de erros específicos (janela de 24h do WhatsApp)
+- [x] Suporte a múltiplos destinatários em ambos os providers
 
 ---
 
@@ -182,8 +194,8 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Subcomando `show` com formatação
 - [x] Subcomando `remove` com confirmação
 - [x] Subcomando `update` (atualização parcial)
-- [x] Subcomando `test` (Telegram getMe, Email SMTP)
-- [x] Wizard interativo para Telegram e Email
+- [x] Subcomando `test` (Telegram getMe, Email SMTP, WhatsApp metadados, Google Chat webhook)
+- [x] Wizard interativo para todos os providers (Telegram, Email, WhatsApp, Google Chat)
 - [x] Validação de campos obrigatórios
 
 ### ✅ Sistema de Help Customizado (`cmd/cast/help.go`)
@@ -196,22 +208,48 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 
 ### ⚠️ Pendências Fase 03
 - [ ] Flag `--source` no config show (não implementado)
-- [ ] Wizard para WhatsApp e Google Chat (providers não existem ainda)
 
 ---
 
-## 📋 FASE 04 - INTEGRAÇÃO AVANÇADA (PENDENTE)
+## ✅ FASE 04 - DETALHAMENTO
 
-### 🔴 Driver: WhatsApp
-- [ ] Implementar `WhatsAppProvider`
-- [ ] Integração com Meta Cloud API
-- [ ] Suporte a Sandbox e Produção
-- [ ] Tratamento de templates (Sandbox)
+### ✅ Driver WhatsApp (`internal/providers/whatsapp.go`)
+- [x] Implementação com `net/http`
+- [x] HTTP POST para Meta Cloud API (`/messages`)
+- [x] Suporte a múltiplos destinatários
+- [x] Tratamento de erros do Facebook (parse JSON)
+- [x] Mensagem específica para janela de 24h fechada (código 131047)
+- [x] Timeout configurável
+- [x] Validação de status HTTP
+- [x] Testes unitários (5 testes)
 
-### 🔴 Driver: Google Chat
-- [ ] Implementar `GoogleChatProvider`
-- [ ] Incoming Webhook
-- [ ] Formatação de mensagens
+### ✅ Driver Google Chat (`internal/providers/googlechat.go`)
+- [x] Implementação com `net/http`
+- [x] HTTP POST para Incoming Webhooks
+- [x] Lógica de target (URL completa ou "default")
+- [x] Validação de URL do Google Chat
+- [x] Suporte a múltiplos webhooks
+- [x] Timeout configurável
+- [x] Testes unitários (6 testes)
+
+### ✅ Integração na Factory (`internal/providers/factory.go`)
+- [x] WhatsApp e Google Chat adicionados ao switch
+- [x] Validação de configuração obrigatória
+- [x] Mensagens de erro claras
+
+### ✅ Wizards e Flags (`cmd/cast/gateway.go`)
+- [x] `runWhatsAppWizard()` - Wizard completo com validação
+- [x] `runGoogleChatWizard()` - Wizard completo com validação de URL
+- [x] `addWhatsAppViaFlags()` - Configuração via flags
+- [x] `addGoogleChatViaFlags()` - Configuração via flags
+- [x] `updateWhatsAppViaFlags()` - Atualização parcial
+- [x] `updateGoogleChatViaFlags()` - Atualização parcial
+- [x] Flags adicionadas ao `init()` para ambos os providers
+
+### ✅ Testes de Conectividade (`cmd/cast/gateway.go`)
+- [x] `testWhatsApp()` - GET endpoint de metadados
+- [x] `testGoogleChat()` - Validação de URL e envio de teste
+- [x] Integração no comando `gateway test`
 
 ---
 
@@ -255,6 +293,7 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `results/01_RESULTS.md` - Resultados da Fase 01
 - [x] `results/02_RESULTS.md` - Resultados da Fase 02
 - [x] `results/03_RESULTS.md` - Resultados da Fase 03
+- [x] `results/04_RESULTS.md` - Resultados da Fase 04
 
 ### ⚠️ Pendente
 - [ ] README principal do projeto
@@ -285,13 +324,17 @@ internal/
     manager.go      ✅ Gerenciador de configuração (Save)
     manager_test.go ✅ Testes do manager
   providers/
-    provider.go     ✅ Interface Provider
-    factory.go       ✅ Factory de providers
-    factory_test.go  ✅ Testes da factory
-    telegram.go      ✅ Driver Telegram
-    telegram_test.go ✅ Testes do Telegram
-    email.go         ✅ Driver Email
-    email_test.go    ✅ Testes do Email
+    provider.go        ✅ Interface Provider
+    factory.go         ✅ Factory de providers (4 providers)
+    factory_test.go    ✅ Testes da factory
+    telegram.go        ✅ Driver Telegram
+    telegram_test.go   ✅ Testes do Telegram
+    email.go           ✅ Driver Email
+    email_test.go      ✅ Testes do Email
+    whatsapp.go        ✅ Driver WhatsApp
+    whatsapp_test.go   ✅ Testes do WhatsApp
+    googlechat.go      ✅ Driver Google Chat
+    googlechat_test.go ✅ Testes do Google Chat
 ```
 
 ### Interfaces Definidas
@@ -308,9 +351,9 @@ type Provider interface {
 ```go
 type Config struct {
     Telegram  TelegramConfig              ✅ Implementado
-    WhatsApp  WhatsAppConfig              ✅ Estrutura pronta
+    WhatsApp  WhatsAppConfig              ✅ Implementado
     Email     EmailConfig                 ✅ Implementado
-    GoogleChat GoogleChatConfig           ✅ Estrutura pronta
+    GoogleChat GoogleChatConfig           ✅ Implementado
     Aliases   map[string]AliasConfig      ✅ Implementado
 }
 ```
@@ -323,9 +366,9 @@ type Config struct {
 - [x] Pasta `tests/` criada
 - [x] `.gitignore` configurado
 - [x] Testes unitários para `config.Load()` e aliases
-- [x] Testes unitários para providers (Telegram e Email)
+- [x] Testes unitários para providers (Telegram, Email, WhatsApp, Google Chat)
 - [x] Testes da Factory
-- [x] Mocks HTTP para testes do Telegram
+- [x] Mocks HTTP para todos os providers
 
 ### ⚠️ Pendente
 - [ ] Testes de integração end-to-end
@@ -351,17 +394,17 @@ type Config struct {
 ## 📈 MÉTRICAS
 
 ### Código
-- **Linhas de código:** ~2.500
-- **Arquivos Go:** 15
-- **Arquivos de Teste:** 5
+- **Linhas de código:** ~3.200
+- **Arquivos Go:** 17
+- **Arquivos de Teste:** 7
 - **Comandos CLI:** 5 (root, send, alias, config, gateway)
 - **Subcomandos:** 13 (alias: 5, config: 5, gateway: 5)
 - **Funções de Help:** 20+ funções customizadas em `help.go`
-- **Providers:** 2 implementados (Telegram, Email), 2 pendentes (WhatsApp, Google Chat)
+- **Providers:** 4 implementados (Telegram, Email, WhatsApp, Google Chat)
 
 ### Testes
-- **Testes unitários:** 20
-- **Cobertura:** Providers principais e manager testados
+- **Testes unitários:** 31 (20 anteriores + 11 novos da Fase 04)
+- **Cobertura:** Todos os providers implementados testados
 - **Status:** ✅ Todos os testes passando
 
 ### Documentação
@@ -410,13 +453,14 @@ type Config struct {
 
 ## 📝 NOTAS
 
-- O projeto está na **Fase 03** (Configuration Management) - ✅ **CONCLUÍDA** (objetivos do prompt)
+- O projeto está na **Fase 04** (Advanced Drivers) - ✅ **CONCLUÍDA**
 - A estrutura base está completa e funcional
-- Os drivers Telegram e Email estão implementados e testados
-- O comando `send` está totalmente funcional para Telegram e Email
+- **Todos os 4 drivers estão implementados e testados** (Telegram, Email, WhatsApp, Google Chat)
+- O comando `send` está totalmente funcional para todos os providers
 - Comandos CRUD de configuração implementados e funcionais
-- Wizard interativo disponível para Telegram e Email
-- Próximo foco: Melhorias da Fase 03 ou implementar WhatsApp e Google Chat (Fase 04)
+- Wizard interativo disponível para todos os providers
+- Help customizado 100% em português
+- Próximo foco: Fase 05 (Build & Release) ou melhorias incrementais
 
 ---
 
