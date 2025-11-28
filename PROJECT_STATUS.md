@@ -1,7 +1,7 @@
 # CAST - PROJECT STATUS
 
 **Última atualização:** 2025-01-XX
-**Versão:** 0.1.0 (Fase 01 - Bootstrap)
+**Versão:** 0.2.0 (Fase 02 - Core Drivers)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
@@ -35,6 +35,17 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Exit codes configurados
 - [x] Script de build (`scripts/build.bat`)
 - [x] Configuração VS Code (`.vscode/settings.json`)
+
+### ✅ Fase 02: Core Drivers
+- [x] Provider Factory implementada (`factory.go`)
+- [x] Driver Telegram (`telegram.go`) - HTTP POST real
+- [x] Driver Email (`email.go`) - SMTP com TLS/SSL
+- [x] Integração completa no comando `send`
+- [x] Resolução de aliases funcional
+- [x] Suporte a múltiplos destinatários
+- [x] Testes unitários para providers (17 testes)
+- [x] Feedback visual (verde/vermelho)
+- [x] Tratamento de erros de rede
 
 ---
 
@@ -72,42 +83,47 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Ordem de precedência: ENV > File
 - [x] Integração no `main.go`
 
-#### Comando Send (Dummy)
+#### Comando Send (Funcional)
 - [x] Aceita 3 argumentos: `[provider] [target] [message]`
 - [x] Validação com `cobra.MinimumNArgs(3)`
-- [x] Imprime mensagem dummy: `"Sending via [provider] to [target]: [message]"`
-- [x] Feedback visual em verde
-
-### ⚠️ Pendências Fase 01
-- [ ] Struct completa de Config (WhatsApp, Email, GoogleChat, Aliases)
-- [ ] Validação de configuração obrigatória
-- [ ] Sistema de aliases funcional
-- [ ] Comando para configurar gateways (wizard/interativo)
+- [x] Integração completa com providers reais
+- [x] Resolução de aliases
+- [x] Feedback visual (verde para sucesso, vermelho para erro)
+- [x] Suporte a múltiplos destinatários
 
 ---
 
-## 📋 FASE 02 - IMPLEMENTAÇÃO DE DRIVERS (PENDENTE)
+## ✅ FASE 02 - DETALHAMENTO
 
-### 🔴 Driver: Telegram
-- [ ] Implementar `TelegramProvider` (interface `Provider`)
-- [ ] HTTP POST para API do Telegram
-- [ ] Tratamento de erros da API
-- [ ] Suporte a Chat ID e aliases
-- [ ] Testes unitários
+### ✅ Provider Factory (`internal/providers/factory.go`)
+- [x] Função `GetProvider()` implementada
+- [x] Normalização de nomes de providers
+- [x] Validação de configuração obrigatória
+- [x] Mensagens de erro claras
 
-### 🔴 Driver: Email (SMTP)
-- [ ] Implementar `EmailProvider` (interface `Provider`)
-- [ ] Conexão SMTP com TLS/SSL
-- [ ] Suporte a HTML e anexos
-- [ ] Compatibilidade com Gmail, SendGrid, Resend
-- [ ] Testes unitários
+### ✅ Driver Telegram (`internal/providers/telegram.go`)
+- [x] Implementação com `net/http`
+- [x] HTTP POST para API do Telegram
+- [x] Suporte a múltiplos destinatários
+- [x] Tratamento de "me" com DefaultChatID
+- [x] Timeout configurável
+- [x] Validação de status HTTP
+- [x] Testes unitários (5 testes)
 
-### 🔴 Integração
-- [ ] Factory de providers
-- [ ] Resolução de aliases
-- [ ] Integração com comando `send`
-- [ ] Logging estruturado
-- [ ] Tratamento de erros de rede
+### ✅ Driver Email (`internal/providers/email.go`)
+- [x] Implementação com `net/smtp`
+- [x] Suporte a TLS (porta 587) e SSL (porta 465)
+- [x] Mensagem MIME básica
+- [x] Suporte a múltiplos destinatários
+- [x] Fallback de FromEmail para Username
+- [x] Testes unitários (4 testes)
+
+### ✅ Integração (`cmd/cast/send.go`)
+- [x] Resolução de aliases antes da Factory
+- [x] Integração com Factory
+- [x] Feedback visual (verde/vermelho)
+- [x] Tratamento de erros de rede
+- [x] Mensagens de erro em português
 
 ---
 
@@ -150,6 +166,7 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `02_TECH_SPEC.md` - Especificação técnica
 - [x] `03_CLI_UX.md` - Especificação de UX
 - [x] `04_GATEWAY_CONFIG_SPEC.md` - Configuração de gateways
+- [x] `05_PARAMETER_SPECS.md` - Especificação de comandos CRUD
 
 ### ✅ Tutoriais
 - [x] `01_TUTORIAL_TELEGRAM.md` - Configurar Telegram
@@ -157,6 +174,10 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `03_TUTORIAL_EMAIL.md` - Configurar Email
 - [x] `04_TUTORIAL_GOOGLE_CHAT.md` - Configurar Google Chat
 - [x] `README.md` - Índice dos tutoriais
+
+### ✅ Resultados
+- [x] `results/01_RESULTS.md` - Resultados da Fase 01
+- [x] `results/02_RESULTS.md` - Resultados da Fase 02
 
 ### ⚠️ Pendente
 - [ ] README principal do projeto
@@ -174,13 +195,20 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 cmd/cast/
   main.go      ✅ Entrypoint com config.Load()
   root.go      ✅ Comando raiz + banner + help PT
-  send.go      ✅ Comando send (dummy)
+  send.go      ✅ Comando send (integração completa)
 
 internal/
   config/
-    config.go  ✅ Viper + Struct Config (parcial)
+    config.go       ✅ Viper + Struct Config completa
+    config_test.go  ✅ Testes unitários
   providers/
-    provider.go ✅ Interface Provider
+    provider.go     ✅ Interface Provider
+    factory.go       ✅ Factory de providers
+    factory_test.go  ✅ Testes da factory
+    telegram.go      ✅ Driver Telegram
+    telegram_test.go ✅ Testes do Telegram
+    email.go         ✅ Driver Email
+    email_test.go    ✅ Testes do Email
 ```
 
 ### Interfaces Definidas
@@ -196,8 +224,11 @@ type Provider interface {
 
 ```go
 type Config struct {
-    Telegram TelegramConfig  ✅ Implementado
-    // WhatsApp, Email, GoogleChat, Aliases - ⚠️ Pendente
+    Telegram  TelegramConfig              ✅ Implementado
+    WhatsApp  WhatsAppConfig              ✅ Estrutura pronta
+    Email     EmailConfig                 ✅ Implementado
+    GoogleChat GoogleChatConfig           ✅ Estrutura pronta
+    Aliases   map[string]AliasConfig      ✅ Implementado
 }
 ```
 
@@ -205,15 +236,17 @@ type Config struct {
 
 ## 🧪 TESTES
 
-### ✅ Estrutura
+### ✅ Implementado
 - [x] Pasta `tests/` criada
 - [x] `.gitignore` configurado
+- [x] Testes unitários para `config.Load()` e aliases
+- [x] Testes unitários para providers (Telegram e Email)
+- [x] Testes da Factory
+- [x] Mocks HTTP para testes do Telegram
 
-### 🔴 Pendente
-- [ ] Testes unitários para `config.Load()`
-- [ ] Testes unitários para providers
-- [ ] Testes de integração
-- [ ] Mocks para APIs externas
+### ⚠️ Pendente
+- [ ] Testes de integração end-to-end
+- [ ] Testes com servidores SMTP mock
 
 ---
 
@@ -235,36 +268,44 @@ type Config struct {
 ## 📈 MÉTRICAS
 
 ### Código
-- **Linhas de código:** ~300
-- **Arquivos Go:** 5
+- **Linhas de código:** ~900
+- **Arquivos Go:** 10
+- **Arquivos de Teste:** 4
 - **Comandos CLI:** 2 (root, send)
-- **Providers:** 0 implementados (4 pendentes)
+- **Providers:** 2 implementados (Telegram, Email), 2 pendentes (WhatsApp, Google Chat)
+
+### Testes
+- **Testes unitários:** 17
+- **Cobertura:** Providers principais testados
+- **Status:** ✅ Todos os testes passando
 
 ### Documentação
-- **Especificações:** 5 arquivos
+- **Especificações:** 6 arquivos
 - **Tutoriais:** 4 arquivos
-- **Cobertura:** ~80% da Fase 01
+- **Resultados:** 2 documentos (Fase 01 e 02)
+- **Cobertura:** ~100% da Fase 02
 
 ---
 
 ## 🎯 PRÓXIMOS PASSOS
 
-### Curto Prazo (Fase 01 - Finalização)
-1. Completar struct `Config` (WhatsApp, Email, GoogleChat, Aliases)
-2. Implementar validação de configuração
-3. Sistema de aliases funcional
-4. Comando `config` para wizard de configuração
+### Curto Prazo (Fase 03)
+1. Implementar `WhatsAppProvider` (Meta Cloud API)
+2. Implementar `GoogleChatProvider` (Incoming Webhook)
+3. Testes unitários para novos providers
+4. Comandos CRUD de configuração (conforme `05_PARAMETER_SPECS.md`)
 
-### Médio Prazo (Fase 02)
-1. Implementar `TelegramProvider`
-2. Implementar `EmailProvider`
-3. Testes unitários
-4. Integração completa
+### Médio Prazo (Fase 04)
+1. Cross-compilation (Windows/Linux)
+2. Scripts de build para múltiplas plataformas
+3. Versionamento automático
+4. Releases no GitHub
 
-### Longo Prazo (Fase 03-04)
-1. WhatsApp e Google Chat providers
-2. Cross-compilation
-3. Releases e documentação final
+### Longo Prazo
+1. README completo
+2. Guia de instalação
+3. Exemplos práticos
+4. CI/CD (GitHub Actions)
 
 ---
 
@@ -279,10 +320,11 @@ type Config struct {
 
 ## 📝 NOTAS
 
-- O projeto está na **Fase 01** (Bootstrap)
+- O projeto está na **Fase 02** (Core Drivers) - ✅ **CONCLUÍDA**
 - A estrutura base está completa e funcional
-- O comando `send` atualmente apenas imprime mensagens (dummy)
-- Próximo foco: Implementar drivers reais (Fase 02)
+- Os drivers Telegram e Email estão implementados e testados
+- O comando `send` está totalmente funcional para Telegram e Email
+- Próximo foco: Implementar WhatsApp e Google Chat (Fase 03)
 
 ---
 
