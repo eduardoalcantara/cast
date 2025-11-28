@@ -1,8 +1,16 @@
 # TUTORIAIS DE CONFIGURAÇÃO - CAST
 
-Este diretório contém tutoriais completos para configurar cada gateway suportado pelo CAST.
+Este diretório contém tutoriais completos para configurar cada gateway suportado pelo CAST e o ambiente de desenvolvimento.
 
 ## 📚 ÍNDICE DE TUTORIAIS
+
+### 0. [Ferramentas de Desenvolvimento](00_TUTORIAL_DEVELOPMENT_TOOLS.md)
+- Instalação do Go
+- Configuração do Git
+- Setup do VS Code
+- Ferramentas Go (goimports, golangci-lint)
+- Scripts de build
+- Windows e Linux
 
 ### 1. [Telegram](01_TUTORIAL_TELEGRAM.md)
 - Criar bot via @BotFather
