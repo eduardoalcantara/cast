@@ -5,7 +5,7 @@
 Inicializar o projeto `cast` em Go, criando a estrutura de pastas, configurando Cobra+Viper e implementando a UX definida.
 
 # INPUTS
-Consulte as specs definidas em `/docs/02_TECH_SPEC.md` e `/docs/03_CLI_UX.md`.
+Consulte as specs definidas em `/documents/02_TECH_SPEC.md` e `/documents/03_CLI_UX.md`.
 
 # REQUIREMENTS
 
@@ -20,7 +20,7 @@ Consulte as specs definidas em `/docs/02_TECH_SPEC.md` e `/docs/03_CLI_UX.md`.
    - Struct de config deve prever: `Telegram.Token`, `Telegram.DefaultChatID`.
 
 3. **UX & Commands:**
-   - Implemente o Banner ASCII (Cyan) no `rootCmd`.
+   - Implemente o Banner ASCII (Light Green) no `rootCmd`.
    - Implemente o comando `send` aceitando 3 argumentos obrigatórios.
    - Preencha o campo `Example` do Cobra com os exemplos da spec UX.
 
