@@ -9,6 +9,9 @@
   - NÃO repita código já mostrado (use comentários como "// ... código existente mantido ...").
   - NÃO explique conceitos óbvios da linguagem Go (como o que é um slice ou struct).
   - Ao listar mudanças: use bullets curtos e diretos.
+  - Sempre termine uma resposta com uma nova linha "\n*Resposta Nº* `x`" onde x é o número da resposta dentro do chat, um inteiro incremental.
+  - Sempre termine uma resposta com uma nova linha indicando qual o modelo de IA usado na resposta: "\n*Modelo:* `m`" onde m é o modelo usado atualmente. Você deve verificar qual modelo está usando, não apenas repetir o último modelo usado.
+
 
 ## praticas modelagem:
   - Projete sob os princípios SOLID e DRY; evite duplicidade de lógica.
@@ -52,3 +55,6 @@
   - Se a API do Telegram mudar ou o SMTP falhar, reporte o erro real, não mascare.
   - Apenas marque como "Pronto" quando o binário `cast.exe` realmente entregar a mensagem no destino.
   - NUNCA MINTA sobre a cobertura de testes ou estabilidade do binário.
+
+## compilação
+  - copie o arquivo executável para `./run` sempre que compilar.

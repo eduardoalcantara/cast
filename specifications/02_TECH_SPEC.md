@@ -33,6 +33,7 @@ O `cast` deve carregar configurações com a seguinte **ordem de precedência** 
   /prompts/
   /scripts/
   /logs/
+  /run/
   go.mod
 ```
 

@@ -3,7 +3,7 @@
 
 ## 1. IDENTIDADE VISUAL (BANNER)
 Sempre que o comando for invocado sem argumentos ou com `--help`, exibir:
-(Cor sugerida: Ciano ou Verde Neon)
+(Cor sugerida: Verde Neon)
 
 ```text
 ┏┓┏┓┏┓┏┳┓

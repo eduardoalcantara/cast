@@ -1,0 +1,81 @@
+{
+    // Configurações do Go
+    "go.toolsManagement.checkForUpdates": "local",
+    "go.useLanguageServer": true,
+    "go.formatTool": "goimports",
+    "go.lintTool": "golangci-lint",
+    "go.lintOnSave": "package",
+    "go.vetOnSave": "package",
+    "go.buildOnSave": "package",
+    "go.testOnSave": false,
+    "go.coverOnSave": false,
+    "go.coverOnTestPackage": false,
+    "go.testFlags": [
+        "-v"
+    ],
+    "go.testTimeout": "30s",
+    "go.installDependenciesWhenBuilding": true,
+    "go.gocodeAutoBuild": false,
+    "gopls": {
+        "build.directoryFilters": [
+            "run",
+            "logs",
+            "tests"
+        ],
+        "ui.diagnostic.analyses": {
+            "composites": true,
+            "unusedparams": true,
+            "unusedwrite": true
+        }
+    },
+    // Configurações de formatação
+    "editor.formatOnSave": true,
+    "[go]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "golang.go"
+    },
+    // Terminal padrão: Prompt de Comando do Windows
+    "terminal.integrated.defaultProfile.windows": "Command Prompt",
+    "terminal.integrated.profiles.windows": {
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [],
+            "icon": "terminal-cmd"
+        },
+        "PowerShell": {
+            "path": [
+                "${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+            ],
+            "args": [],
+            "icon": "terminal-powershell"
+        }
+    },
+    // Configurações de arquivos
+    "files.exclude": {
+        "**/.git": true,
+        "**/.DS_Store": true,
+        "**/run": true,
+        "**/logs": true,
+        "**/tests": true
+    },
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/run/**": true,
+        "**/logs/**": true
+    },
+    // Configurações de busca
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/vendor": true,
+        "**/run": true,
+        "**/logs": true,
+        "**/*.exe": true
+    }
+}
