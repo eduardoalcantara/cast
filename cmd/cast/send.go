@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/eduardoalcantara/cast/internal/config"
+	"github.com/eduardoalcantara/cast/internal/providers"
 )
 
 var sendCmd = &cobra.Command{
@@ -37,17 +41,57 @@ Múltiplos Recipientes:
   cast send mail "admin@empresa.com;dev@empresa.com" "Relatório Diário"`,
 	Args: cobra.MinimumNArgs(3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		provider := args[0]
+		providerName := args[0]
 		target := args[1]
 		message := strings.Join(args[2:], " ")
 
-		// Dummy implementation - apenas imprime a mensagem
-		// TODO: Implementar lógica de envio real na Fase 02
-		// Suporte a múltiplos targets já implementado via ParseTargets
-		fmt.Printf("Sending via [%s] to [%s]: [%s]\n", provider, target, message)
+		// Carrega configuração
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return fmt.Errorf("erro de configuração: %w", err)
+		}
 
-		green := color.New(color.FgHiGreen)
-		green.Printf("✓ Mensagem enviada com sucesso (dummy)\n")
+		// Verifica se é um alias antes de resolver provider
+		var actualProviderName string
+		var actualTarget string
+
+		if cfg != nil && cfg.Aliases != nil {
+			if alias := cfg.GetAlias(providerName); alias != nil {
+				// É um alias - usa provider e target do alias
+				actualProviderName = alias.Provider
+				actualTarget = alias.Target
+			} else {
+				// Não é alias - usa valores fornecidos
+				actualProviderName = providerName
+				actualTarget = target
+			}
+		} else {
+			// Sem aliases configurados - usa valores fornecidos
+			actualProviderName = providerName
+			actualTarget = target
+		}
+
+		// Resolve provider via Factory
+		provider, err := providers.GetProvider(actualProviderName, cfg)
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao obter provider: %v\n", err)
+			return err
+		}
+
+		// Envia mensagem
+		err = provider.Send(actualTarget, message)
+		if err != nil {
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao enviar mensagem: %v\n", err)
+			return err
+		}
+
+		// Sucesso
+		green := color.New(color.FgHiGreen, color.Bold)
+		green.Printf("✓ Mensagem enviada com sucesso via %s\n", provider.Name())
 
 		return nil
 	},
