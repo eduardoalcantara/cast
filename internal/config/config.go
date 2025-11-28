@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -10,55 +12,55 @@ import (
 
 // Config representa a estrutura de configuração do CAST.
 type Config struct {
-	Telegram  TelegramConfig              `mapstructure:"telegram"`
-	WhatsApp  WhatsAppConfig              `mapstructure:"whatsapp"`
-	Email     EmailConfig                 `mapstructure:"email"`
-	GoogleChat GoogleChatConfig           `mapstructure:"google_chat"`
-	Aliases   map[string]AliasConfig      `mapstructure:"aliases"`
+	Telegram  TelegramConfig              `mapstructure:"telegram" yaml:"telegram" json:"telegram"`
+	WhatsApp  WhatsAppConfig              `mapstructure:"whatsapp" yaml:"whatsapp" json:"whatsapp"`
+	Email     EmailConfig                 `mapstructure:"email" yaml:"email" json:"email"`
+	GoogleChat GoogleChatConfig           `mapstructure:"google_chat" yaml:"google_chat" json:"google_chat"`
+	Aliases   map[string]AliasConfig      `mapstructure:"aliases" yaml:"aliases" json:"aliases"`
 }
 
 // TelegramConfig contém as configurações do Telegram.
 type TelegramConfig struct {
-	Token        string `mapstructure:"token"`
-	DefaultChatID string `mapstructure:"default_chat_id"`
-	APIURL       string `mapstructure:"api_url"`
-	Timeout      int    `mapstructure:"timeout"`
+	Token        string `mapstructure:"token" yaml:"token" json:"token"`
+	DefaultChatID string `mapstructure:"default_chat_id" yaml:"default_chat_id" json:"default_chat_id"`
+	APIURL       string `mapstructure:"api_url" yaml:"api_url" json:"api_url"`
+	Timeout      int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }
 
 // WhatsAppConfig contém as configurações do WhatsApp (Meta Cloud API).
 type WhatsAppConfig struct {
-	PhoneNumberID    string `mapstructure:"phone_number_id"`
-	AccessToken      string `mapstructure:"access_token"`
-	BusinessAccountID string `mapstructure:"business_account_id"`
-	APIVersion       string `mapstructure:"api_version"`
-	APIURL           string `mapstructure:"api_url"`
-	Timeout          int    `mapstructure:"timeout"`
+	PhoneNumberID    string `mapstructure:"phone_number_id" yaml:"phone_number_id" json:"phone_number_id"`
+	AccessToken      string `mapstructure:"access_token" yaml:"access_token" json:"access_token"`
+	BusinessAccountID string `mapstructure:"business_account_id" yaml:"business_account_id" json:"business_account_id"`
+	APIVersion       string `mapstructure:"api_version" yaml:"api_version" json:"api_version"`
+	APIURL           string `mapstructure:"api_url" yaml:"api_url" json:"api_url"`
+	Timeout          int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }
 
 // EmailConfig contém as configurações de Email (SMTP).
 type EmailConfig struct {
-	SMTPHost  string `mapstructure:"smtp_host"`
-	SMTPPort  int    `mapstructure:"smtp_port"`
-	Username  string `mapstructure:"username"`
-	Password  string `mapstructure:"password"`
-	FromEmail string `mapstructure:"from_email"`
-	FromName  string `mapstructure:"from_name"`
-	UseTLS    bool   `mapstructure:"use_tls"`
-	UseSSL    bool   `mapstructure:"use_ssl"`
-	Timeout   int    `mapstructure:"timeout"`
+	SMTPHost  string `mapstructure:"smtp_host" yaml:"smtp_host" json:"smtp_host"`
+	SMTPPort  int    `mapstructure:"smtp_port" yaml:"smtp_port" json:"smtp_port"`
+	Username  string `mapstructure:"username" yaml:"username" json:"username"`
+	Password  string `mapstructure:"password" yaml:"password" json:"password"`
+	FromEmail string `mapstructure:"from_email" yaml:"from_email" json:"from_email"`
+	FromName  string `mapstructure:"from_name" yaml:"from_name" json:"from_name"`
+	UseTLS    bool   `mapstructure:"use_tls" yaml:"use_tls" json:"use_tls"`
+	UseSSL    bool   `mapstructure:"use_ssl" yaml:"use_ssl" json:"use_ssl"`
+	Timeout   int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }
 
 // GoogleChatConfig contém as configurações do Google Chat.
 type GoogleChatConfig struct {
-	WebhookURL string `mapstructure:"webhook_url"`
-	Timeout    int    `mapstructure:"timeout"`
+	WebhookURL string `mapstructure:"webhook_url" yaml:"webhook_url" json:"webhook_url"`
+	Timeout    int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }
 
 // AliasConfig representa um alias para facilitar o uso do CLI.
 type AliasConfig struct {
-	Provider string `mapstructure:"provider"`
-	Target   string `mapstructure:"target"`
-	Name     string `mapstructure:"name"`
+	Provider string `mapstructure:"provider" yaml:"provider" json:"provider"`
+	Target   string `mapstructure:"target" yaml:"target" json:"target"`
+	Name     string `mapstructure:"name" yaml:"name" json:"name"`
 }
 
 // Load inicializa e carrega a configuração seguindo a ordem de precedência:
@@ -69,8 +71,59 @@ func Load() error {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	// Busca arquivo de configuração no diretório atual
+	// BindEnv explícito para estruturas aninhadas (necessário para AutomaticEnv funcionar corretamente)
+	// Com SetEnvKeyReplacer(".", "_"), o Viper mapeia automaticamente:
+	// telegram.token -> CAST_TELEGRAM_TOKEN
+	// telegram.default_chat_id -> CAST_TELEGRAM_DEFAULT_CHAT_ID
+	// etc.
+
+	// Telegram
+	viper.BindEnv("telegram.token")
+	viper.BindEnv("telegram.default_chat_id")
+	viper.BindEnv("telegram.api_url")
+	viper.BindEnv("telegram.timeout")
+
+	// WhatsApp
+	viper.BindEnv("whatsapp.phone_number_id")
+	viper.BindEnv("whatsapp.access_token")
+	viper.BindEnv("whatsapp.business_account_id")
+	viper.BindEnv("whatsapp.api_version")
+	viper.BindEnv("whatsapp.api_url")
+	viper.BindEnv("whatsapp.timeout")
+
+	// Email
+	viper.BindEnv("email.smtp_host")
+	viper.BindEnv("email.smtp_port")
+	viper.BindEnv("email.username")
+	viper.BindEnv("email.password")
+	viper.BindEnv("email.from_email")
+	viper.BindEnv("email.from_name")
+	viper.BindEnv("email.use_tls")
+	viper.BindEnv("email.use_ssl")
+	viper.BindEnv("email.timeout")
+
+	// Google Chat
+	viper.BindEnv("google_chat.webhook_url")
+	viper.BindEnv("google_chat.timeout")
+
+	// Busca arquivo de configuração no mesmo diretório do executável
+	// Primeiro tenta obter o diretório do executável
+	execPath, err := os.Executable()
+	var configDir string
+	if err == nil {
+		// Obtém o diretório do executável
+		configDir = filepath.Dir(execPath)
+		// Normaliza o caminho (resolve symlinks no Linux/Mac)
+		configDir, _ = filepath.EvalSymlinks(configDir)
+	} else {
+		// Fallback: usa diretório atual se não conseguir obter o executável
+		configDir = "."
+	}
+
 	viper.SetConfigName("cast")
+	// Adiciona o diretório do executável como primeiro caminho (prioridade)
+	viper.AddConfigPath(configDir)
+	// Adiciona diretório atual como fallback
 	viper.AddConfigPath(".")
 
 	// Tenta carregar arquivo em múltiplos formatos (ordem: yaml, json, properties)
@@ -102,6 +155,7 @@ func Load() error {
 }
 
 // LoadConfig carrega a configuração e retorna a struct Config.
+// Respeita a ordem de precedência: ENV > Arquivo
 func LoadConfig() (*Config, error) {
 	if err := Load(); err != nil {
 		return nil, fmt.Errorf("erro ao carregar configuração: %w", err)
@@ -112,6 +166,10 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("erro ao fazer unmarshal da configuração: %w", err)
 	}
 
+	// Aplica valores de ENV sobre o arquivo (ENV tem prioridade)
+	// viper.Get() respeita a ordem de precedência: ENV > Arquivo
+	applyEnvOverrides(&cfg)
+
 	// Aplica valores padrão
 	cfg.applyDefaults()
 
@@ -121,6 +179,84 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// applyEnvOverrides aplica valores de variáveis de ambiente sobre os valores do arquivo.
+// Isso garante que ENV sempre tenha prioridade sobre o arquivo.
+// viper.Get() respeita a ordem de precedência: ENV > Arquivo
+func applyEnvOverrides(cfg *Config) {
+	// Telegram
+	// Se ENV está definido, usa ENV (viper.Get() retorna ENV se existir)
+	if envVal := viper.GetString("telegram.token"); envVal != "" {
+		cfg.Telegram.Token = envVal
+	}
+	if envVal := viper.GetString("telegram.default_chat_id"); envVal != "" {
+		cfg.Telegram.DefaultChatID = envVal
+	}
+	if envVal := viper.GetString("telegram.api_url"); envVal != "" {
+		cfg.Telegram.APIURL = envVal
+	}
+	if envVal := viper.GetInt("telegram.timeout"); envVal > 0 {
+		cfg.Telegram.Timeout = envVal
+	}
+
+	// WhatsApp
+	if envVal := viper.GetString("whatsapp.phone_number_id"); envVal != "" {
+		cfg.WhatsApp.PhoneNumberID = envVal
+	}
+	if envVal := viper.GetString("whatsapp.access_token"); envVal != "" {
+		cfg.WhatsApp.AccessToken = envVal
+	}
+	if envVal := viper.GetString("whatsapp.business_account_id"); envVal != "" {
+		cfg.WhatsApp.BusinessAccountID = envVal
+	}
+	if envVal := viper.GetString("whatsapp.api_version"); envVal != "" {
+		cfg.WhatsApp.APIVersion = envVal
+	}
+	if envVal := viper.GetString("whatsapp.api_url"); envVal != "" {
+		cfg.WhatsApp.APIURL = envVal
+	}
+	if envVal := viper.GetInt("whatsapp.timeout"); envVal > 0 {
+		cfg.WhatsApp.Timeout = envVal
+	}
+
+	// Email
+	if envVal := viper.GetString("email.smtp_host"); envVal != "" {
+		cfg.Email.SMTPHost = envVal
+	}
+	if envVal := viper.GetInt("email.smtp_port"); envVal > 0 {
+		cfg.Email.SMTPPort = envVal
+	}
+	if envVal := viper.GetString("email.username"); envVal != "" {
+		cfg.Email.Username = envVal
+	}
+	if envVal := viper.GetString("email.password"); envVal != "" {
+		cfg.Email.Password = envVal
+	}
+	if envVal := viper.GetString("email.from_email"); envVal != "" {
+		cfg.Email.FromEmail = envVal
+	}
+	if envVal := viper.GetString("email.from_name"); envVal != "" {
+		cfg.Email.FromName = envVal
+	}
+	// Booleanos: se ENV está definido, usa ENV
+	if viper.IsSet("email.use_tls") {
+		cfg.Email.UseTLS = viper.GetBool("email.use_tls")
+	}
+	if viper.IsSet("email.use_ssl") {
+		cfg.Email.UseSSL = viper.GetBool("email.use_ssl")
+	}
+	if envVal := viper.GetInt("email.timeout"); envVal > 0 {
+		cfg.Email.Timeout = envVal
+	}
+
+	// Google Chat
+	if envVal := viper.GetString("google_chat.webhook_url"); envVal != "" {
+		cfg.GoogleChat.WebhookURL = envVal
+	}
+	if envVal := viper.GetInt("google_chat.timeout"); envVal > 0 {
+		cfg.GoogleChat.Timeout = envVal
+	}
 }
 
 // applyDefaults aplica valores padrão para campos opcionais.
@@ -155,8 +291,13 @@ func (c *Config) applyDefaults() {
 	if c.Email.FromEmail == "" {
 		c.Email.FromEmail = c.Email.Username
 	}
-	if !c.Email.UseTLS && !c.Email.UseSSL {
-		c.Email.UseTLS = true // Padrão TLS
+	// Aplica padrão TLS apenas se NENHUM dos dois foi explicitamente definido
+	// Verifica se foram definidos no arquivo ou ENV usando viper.IsSet()
+	if !viper.IsSet("email.use_tls") && !viper.IsSet("email.use_ssl") {
+		// Nenhum foi definido, aplica padrão TLS
+		if !c.Email.UseTLS && !c.Email.UseSSL {
+			c.Email.UseTLS = true // Padrão TLS
+		}
 	}
 	if c.Email.Timeout == 0 {
 		c.Email.Timeout = 30

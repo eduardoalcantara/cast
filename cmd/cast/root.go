@@ -8,8 +8,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "cast",
-	Short: "CAST - Ferramenta CLI para envio agnóstico de mensagens",
+	Use:           "cast",
+	Short:         "CAST - Ferramenta CLI para envio agnóstico de mensagens",
+	SilenceErrors: true, // Erros são tratados pelos comandos com formatação customizada
 	Long: `Ferramenta CLI standalone para envio agnóstico de mensagens (Fire & Forget).
 Suporta múltiplos canais: Telegram, WhatsApp, Email, Google Chat.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -123,6 +124,17 @@ func setupCustomHelp() {
 	configReloadCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		ShowConfigReloadHelp()
 	})
+	// Adiciona help para config sources (se existir)
+	if configSourcesCmd := configCmd.Commands(); configSourcesCmd != nil {
+		for _, cmd := range configSourcesCmd {
+			if cmd.Name() == "sources" {
+				cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+					ShowConfigSourcesHelp()
+				})
+				break
+			}
+		}
+	}
 }
 
 // setupPortugueseHelp configura as mensagens de help do Cobra para português.

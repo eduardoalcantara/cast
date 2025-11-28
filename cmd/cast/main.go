@@ -15,6 +15,8 @@ func main() {
 	}
 
 	if err := Execute(); err != nil {
+		// Erro já foi impresso pelo comando com formatação customizada
+		// Não precisa imprimir novamente aqui
 		os.Exit(1)
 	}
 }

@@ -37,11 +37,20 @@ func Save(cfg *Config) error {
 			format = "yaml"
 		}
 	} else {
-		// Arquivo não existe, cria em YAML no diretório atual
-		configFile = "cast.yaml"
-		// Se estiver em teste, usa o diretório atual
-		if wd, err := os.Getwd(); err == nil {
-			configFile = filepath.Join(wd, "cast.yaml")
+		// Arquivo não existe, cria no mesmo diretório do executável
+		execPath, err := os.Executable()
+		if err == nil {
+			// Obtém o diretório do executável
+			configDir := filepath.Dir(execPath)
+			// Normaliza o caminho (resolve symlinks no Linux/Mac)
+			configDir, _ = filepath.EvalSymlinks(configDir)
+			configFile = filepath.Join(configDir, "cast.yaml")
+		} else {
+			// Fallback: usa diretório atual se não conseguir obter o executável
+			configFile = "cast.yaml"
+			if wd, err := os.Getwd(); err == nil {
+				configFile = filepath.Join(wd, "cast.yaml")
+			}
 		}
 	}
 

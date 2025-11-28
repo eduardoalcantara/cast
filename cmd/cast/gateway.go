@@ -30,8 +30,9 @@ Exemplos:
 }
 
 var gatewayAddCmd = &cobra.Command{
-	Use:   "add [provider]",
-	Short: "Adiciona/Configura um gateway",
+	Use:          "add [provider]",
+	Short:        "Adiciona/Configura um gateway",
+	SilenceUsage: true,
 	Long: `Adiciona ou configura um gateway.
 
 Use --interactive para modo wizard interativo.
@@ -59,20 +60,28 @@ Ou use flags para configurar diretamente.`,
 }
 
 var gatewayShowCmd = &cobra.Command{
-	Use:   "show <provider>",
-	Short: "Mostra configuração de um gateway",
-	Args:  cobra.ExactArgs(1),
+	Use:          "show [provider]",
+	Short:        "Mostra configuração de um gateway ou todos os gateways",
+	SilenceUsage: true,
+	Args:         cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		providerName := args[0]
 		mask, _ := cmd.Flags().GetBool("mask")
 
 		cfg, err := config.LoadConfig()
 		if err != nil {
-			yellow := color.New(color.FgYellow)
-			yellow.Printf("Gateway '%s' não configurado\n", providerName)
+			red := color.New(color.FgRed, color.Bold)
+			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+			return err
+		}
+
+		// Se não especificou provider, mostra todos
+		if len(args) == 0 {
+			showAllGateways(cfg, mask)
 			return nil
 		}
 
+		// Mostra provider específico
+		providerName := args[0]
 		normalized := normalizeGatewayName(providerName)
 		switch normalized {
 		case "telegram":
@@ -92,9 +101,10 @@ var gatewayShowCmd = &cobra.Command{
 }
 
 var gatewayRemoveCmd = &cobra.Command{
-	Use:   "remove <provider>",
-	Short: "Remove configuração de um gateway",
-	Args:  cobra.ExactArgs(1),
+	Use:          "remove <provider>",
+	Short:        "Remove configuração de um gateway",
+	SilenceUsage: true,
+	Args:         cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		providerName := args[0]
 		confirm, _ := cmd.Flags().GetBool("confirm")
@@ -151,8 +161,9 @@ var gatewayRemoveCmd = &cobra.Command{
 }
 
 var gatewayUpdateCmd = &cobra.Command{
-	Use:   "update <provider>",
-	Short: "Atualiza configuração de um gateway",
+	Use:          "update <provider>",
+	Short:        "Atualiza configuração de um gateway",
+	SilenceUsage: true,
 	Long: `Atualiza configuração de um gateway existente.
 
 Atualiza apenas os campos fornecidos nas flags.
@@ -183,7 +194,7 @@ Falha se o gateway não estiver configurado.`,
 		case "email":
 			exists = cfg.Email.SMTPHost != ""
 		case "whatsapp":
-			exists = cfg.WhatsApp.PhoneNumberID != ""
+			exists = cfg.WhatsApp.PhoneNumberID != "" && cfg.WhatsApp.AccessToken != ""
 		case "google_chat":
 			exists = cfg.GoogleChat.WebhookURL != ""
 		}
@@ -231,8 +242,9 @@ Falha se o gateway não estiver configurado.`,
 }
 
 var gatewayTestCmd = &cobra.Command{
-	Use:   "test <provider>",
-	Short: "Testa conectividade de um gateway",
+	Use:          "test <provider>",
+	Short:        "Testa conectividade de um gateway",
+	SilenceUsage: true,
 	Long: `Testa a conectividade e autenticação de um gateway.
 
 Telegram: Chama getMe na API
@@ -263,7 +275,7 @@ Google Chat: Valida URL do webhook`,
 		case "email":
 			return testEmail(cfg.Email, target)
 		case "whatsapp":
-			return fmt.Errorf("teste de WhatsApp ainda não implementado")
+			return testWhatsApp(cfg.WhatsApp)
 		case "google_chat":
 			return testGoogleChat(cfg.GoogleChat, target)
 		default:
@@ -285,6 +297,13 @@ func init() {
 	gatewayAddCmd.Flags().Bool("use-tls", false, "Usar TLS")
 	gatewayAddCmd.Flags().Bool("use-ssl", false, "Usar SSL")
 	gatewayAddCmd.Flags().Int("timeout", 0, "Timeout em segundos")
+	// Flags WhatsApp
+	gatewayAddCmd.Flags().String("phone-id", "", "Phone Number ID do WhatsApp")
+	gatewayAddCmd.Flags().String("access-token", "", "Access Token do WhatsApp")
+	gatewayAddCmd.Flags().String("business-account-id", "", "Business Account ID do WhatsApp (opcional)")
+	gatewayAddCmd.Flags().String("api-version", "", "API Version do WhatsApp (padrão: v18.0)")
+	// Flags Google Chat
+	gatewayAddCmd.Flags().String("webhook-url", "", "Webhook URL do Google Chat")
 	gatewayAddCmd.Flags().BoolP("interactive", "i", false, "Modo wizard interativo")
 
 	// Flags para gateway update (mesmas do add)
@@ -299,6 +318,13 @@ func init() {
 	gatewayUpdateCmd.Flags().Bool("use-tls", false, "Usar TLS")
 	gatewayUpdateCmd.Flags().Bool("use-ssl", false, "Usar SSL")
 	gatewayUpdateCmd.Flags().Int("timeout", 0, "Timeout em segundos")
+	// Flags WhatsApp
+	gatewayUpdateCmd.Flags().String("phone-id", "", "Phone Number ID do WhatsApp")
+	gatewayUpdateCmd.Flags().String("access-token", "", "Access Token do WhatsApp")
+	gatewayUpdateCmd.Flags().String("business-account-id", "", "Business Account ID do WhatsApp")
+	gatewayUpdateCmd.Flags().String("api-version", "", "API Version do WhatsApp")
+	// Flags Google Chat
+	gatewayUpdateCmd.Flags().String("webhook-url", "", "Webhook URL do Google Chat")
 
 	gatewayTestCmd.Flags().StringP("target", "t", "", "Target para teste (opcional, para Email e Google Chat)")
 
@@ -387,6 +413,10 @@ func runGatewayAddFlags(cmd *cobra.Command, providerName string) error {
 		return addTelegramViaFlags(cmd, cfg)
 	case "email":
 		return addEmailViaFlags(cmd, cfg)
+	case "whatsapp":
+		return addWhatsAppViaFlags(cmd, cfg)
+	case "google_chat":
+		return addGoogleChatViaFlags(cmd, cfg)
 	default:
 		return fmt.Errorf("add via flags não implementado para: %s (use --interactive)", normalized)
 	}
@@ -604,13 +634,178 @@ func runEmailWizard(cfg *config.Config) error {
 	return nil
 }
 
-// runWhatsAppWizard e runGoogleChatWizard são placeholders para Fase 03.
+// runWhatsAppWizard executa o wizard para WhatsApp.
 func runWhatsAppWizard(cfg *config.Config) error {
-	return fmt.Errorf("wizard do WhatsApp ainda não implementado (Fase 03)")
+	var answers struct {
+		PhoneNumberID    string `survey:"phonenumberid"`
+		AccessToken      string `survey:"accesstoken"`
+		BusinessAccountID string `survey:"businessaccountid"`
+		APIVersion       string `survey:"apiversion"`
+		Timeout          string `survey:"timeout"`
+	}
+
+	questions := []*survey.Question{
+		{
+			Name:     "phonenumberid",
+			Prompt:   &survey.Input{Message: "Phone Number ID (ID do número, não o número em si. Ex: 1059...):"},
+			Validate: survey.Required,
+		},
+		{
+			Name:     "accesstoken",
+			Prompt:   &survey.Input{Message: "Access Token (Começa com EAA...). Se for teste, lembre que expira em 24h:"},
+			Validate: survey.Required,
+		},
+		{
+			Name:   "businessaccountid",
+			Prompt: &survey.Input{Message: "Business Account ID (opcional, pode deixar vazio):"},
+		},
+		{
+			Name:   "apiversion",
+			Prompt: &survey.Input{Message: "API Version (padrão: v18.0):", Default: "v18.0"},
+		},
+		{
+			Name:   "timeout",
+			Prompt: &survey.Input{Message: "Timeout em segundos (padrão: 30):", Default: "30"},
+		},
+	}
+
+	if err := survey.Ask(questions, &answers); err != nil {
+		return err
+	}
+
+	// Valida timeout
+	timeout := 30
+	if answers.Timeout != "" {
+		if t, err := strconv.Atoi(answers.Timeout); err == nil && t > 0 {
+			timeout = t
+		}
+	}
+
+	// Valida API version
+	apiVersion := answers.APIVersion
+	if apiVersion == "" {
+		apiVersion = "v18.0"
+	}
+
+	// Atualiza configuração
+	cfg.WhatsApp.PhoneNumberID = answers.PhoneNumberID
+	cfg.WhatsApp.AccessToken = answers.AccessToken
+	cfg.WhatsApp.BusinessAccountID = answers.BusinessAccountID
+	cfg.WhatsApp.APIVersion = apiVersion
+	cfg.WhatsApp.Timeout = timeout
+
+	// Mostra resumo
+	cyan := color.New(color.FgCyan)
+	cyan.Println("\nConfiguração a ser salva:")
+	cyan.Printf("  Phone Number ID: %s\n", answers.PhoneNumberID)
+	cyan.Printf("  Access Token: %s\n", maskToken(answers.AccessToken))
+	cyan.Printf("  Business Account ID: %s\n", answers.BusinessAccountID)
+	cyan.Printf("  API Version: %s\n", apiVersion)
+	cyan.Printf("  Timeout: %d segundos\n", timeout)
+
+	// Confirmação
+	var confirm bool
+	if err := survey.AskOne(&survey.Confirm{
+		Message: "Confirmar e salvar?",
+		Default: true,
+	}, &confirm); err != nil {
+		return err
+	}
+
+	if !confirm {
+		yellow := color.New(color.FgYellow)
+		yellow.Println("Operação cancelada")
+		return nil
+	}
+
+	// Salva
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("erro ao salvar: %w", err)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Println("✓ Configuração do WhatsApp salva com sucesso")
+
+	return nil
 }
 
+// runGoogleChatWizard executa o wizard para Google Chat.
 func runGoogleChatWizard(cfg *config.Config) error {
-	return fmt.Errorf("wizard do Google Chat ainda não implementado (Fase 03)")
+	var answers struct {
+		WebhookURL string `survey:"webhookurl"`
+		Timeout    string `survey:"timeout"`
+	}
+
+	questions := []*survey.Question{
+		{
+			Name:     "webhookurl",
+			Prompt:   &survey.Input{Message: "Webhook URL (deve começar com https://chat.googleapis.com/):"},
+			Validate: func(val interface{}) error {
+				url, ok := val.(string)
+				if !ok {
+					return fmt.Errorf("URL inválida")
+				}
+				if url == "" {
+					return fmt.Errorf("Webhook URL é obrigatório")
+				}
+				if !strings.HasPrefix(url, "https://chat.googleapis.com/") {
+					return fmt.Errorf("URL deve começar com https://chat.googleapis.com/")
+				}
+				return nil
+			},
+		},
+		{
+			Name:   "timeout",
+			Prompt: &survey.Input{Message: "Timeout em segundos (padrão: 30):", Default: "30"},
+		},
+	}
+
+	if err := survey.Ask(questions, &answers); err != nil {
+		return err
+	}
+
+	// Valida timeout
+	timeout := 30
+	if answers.Timeout != "" {
+		if t, err := strconv.Atoi(answers.Timeout); err == nil && t > 0 {
+			timeout = t
+		}
+	}
+
+	// Atualiza configuração
+	cfg.GoogleChat.WebhookURL = answers.WebhookURL
+	cfg.GoogleChat.Timeout = timeout
+
+	// Mostra resumo
+	cyan := color.New(color.FgCyan)
+	cyan.Println("\nConfiguração a ser salva:")
+	cyan.Printf("  Webhook URL: %s\n", answers.WebhookURL)
+	cyan.Printf("  Timeout: %d segundos\n", timeout)
+
+	// Confirmação
+	var confirm bool
+	if err := survey.AskOne(&survey.Confirm{
+		Message: "Confirmar e salvar?",
+		Default: true,
+	}, &confirm); err != nil {
+		return err
+	}
+
+	if !confirm {
+		yellow := color.New(color.FgYellow)
+		yellow.Println("Operação cancelada")
+		return nil
+	}
+
+	// Salva
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("erro ao salvar: %w", err)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Println("✓ Configuração do Google Chat salva com sucesso")
+
+	return nil
 }
 
 // addTelegramViaFlags adiciona Telegram via flags.
@@ -691,6 +886,113 @@ func addEmailViaFlags(cmd *cobra.Command, cfg *config.Config) error {
 	green.Println("✓ Configuração do Email salva com sucesso")
 
 	return nil
+}
+
+// addWhatsAppViaFlags adiciona WhatsApp via flags.
+func addWhatsAppViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	phoneNumberID, _ := cmd.Flags().GetString("phone-id")
+	accessToken, _ := cmd.Flags().GetString("access-token")
+	businessAccountID, _ := cmd.Flags().GetString("business-account-id")
+	apiVersion, _ := cmd.Flags().GetString("api-version")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	if phoneNumberID == "" {
+		return fmt.Errorf("phone-id é obrigatório (use --phone-id)")
+	}
+	if accessToken == "" {
+		return fmt.Errorf("access-token é obrigatório (use --access-token)")
+	}
+
+	if apiVersion == "" {
+		apiVersion = "v18.0"
+	}
+	if timeout == 0 {
+		timeout = 30
+	}
+
+	cfg.WhatsApp.PhoneNumberID = phoneNumberID
+	cfg.WhatsApp.AccessToken = accessToken
+	cfg.WhatsApp.BusinessAccountID = businessAccountID
+	cfg.WhatsApp.APIVersion = apiVersion
+	cfg.WhatsApp.Timeout = timeout
+
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("erro ao salvar: %w", err)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Println("✓ Configuração do WhatsApp salva com sucesso")
+
+	return nil
+}
+
+// addGoogleChatViaFlags adiciona Google Chat via flags.
+func addGoogleChatViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	webhookURL, _ := cmd.Flags().GetString("webhook-url")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	if webhookURL == "" {
+		return fmt.Errorf("webhook-url é obrigatório (use --webhook-url)")
+	}
+
+	if !strings.HasPrefix(webhookURL, "https://chat.googleapis.com/") {
+		return fmt.Errorf("webhook URL deve começar com https://chat.googleapis.com/")
+	}
+
+	if timeout == 0 {
+		timeout = 30
+	}
+
+	cfg.GoogleChat.WebhookURL = webhookURL
+	cfg.GoogleChat.Timeout = timeout
+
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("erro ao salvar: %w", err)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Println("✓ Configuração do Google Chat salva com sucesso")
+
+	return nil
+}
+
+// showAllGateways mostra todos os gateways configurados.
+func showAllGateways(cfg *config.Config, mask bool) {
+	cyan := color.New(color.FgCyan)
+	cyan.Println("Gateways Configurados:")
+	cyan.Println()
+
+	// Telegram
+	if cfg.Telegram.Token != "" {
+		showTelegramConfig(cfg.Telegram, mask)
+		cyan.Println()
+	}
+
+	// Email
+	if cfg.Email.SMTPHost != "" {
+		showEmailConfig(cfg.Email, mask)
+		cyan.Println()
+	}
+
+	// WhatsApp
+	if cfg.WhatsApp.PhoneNumberID != "" {
+		showWhatsAppConfig(cfg.WhatsApp, mask)
+		cyan.Println()
+	}
+
+	// Google Chat
+	if cfg.GoogleChat.WebhookURL != "" {
+		showGoogleChatConfig(cfg.GoogleChat, mask)
+		cyan.Println()
+	}
+
+	// Verifica se nenhum gateway está configurado
+	if cfg.Telegram.Token == "" && cfg.Email.SMTPHost == "" &&
+		cfg.WhatsApp.PhoneNumberID == "" && cfg.GoogleChat.WebhookURL == "" {
+		yellow := color.New(color.FgYellow)
+		yellow.Println("Nenhum gateway configurado")
+		yellow.Println("Use 'cast gateway add <provider>' para configurar")
+	}
 }
 
 // Funções auxiliares para mostrar configurações
@@ -819,6 +1121,53 @@ func updateEmailViaFlags(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("timeout") && timeout > 0 {
 		cfg.Email.Timeout = timeout
+	}
+
+	return nil
+}
+
+// updateWhatsAppViaFlags atualiza WhatsApp via flags (apenas campos fornecidos).
+func updateWhatsAppViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	phoneNumberID, _ := cmd.Flags().GetString("phone-id")
+	accessToken, _ := cmd.Flags().GetString("access-token")
+	businessAccountID, _ := cmd.Flags().GetString("business-account-id")
+	apiVersion, _ := cmd.Flags().GetString("api-version")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	// Atualiza apenas campos fornecidos
+	if cmd.Flags().Changed("phone-id") {
+		cfg.WhatsApp.PhoneNumberID = phoneNumberID
+	}
+	if cmd.Flags().Changed("access-token") {
+		cfg.WhatsApp.AccessToken = accessToken
+	}
+	if cmd.Flags().Changed("business-account-id") {
+		cfg.WhatsApp.BusinessAccountID = businessAccountID
+	}
+	if cmd.Flags().Changed("api-version") && apiVersion != "" {
+		cfg.WhatsApp.APIVersion = apiVersion
+	}
+	if cmd.Flags().Changed("timeout") && timeout > 0 {
+		cfg.WhatsApp.Timeout = timeout
+	}
+
+	return nil
+}
+
+// updateGoogleChatViaFlags atualiza Google Chat via flags (apenas campos fornecidos).
+func updateGoogleChatViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	webhookURL, _ := cmd.Flags().GetString("webhook-url")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	// Atualiza apenas campos fornecidos
+	if cmd.Flags().Changed("webhook-url") {
+		if !strings.HasPrefix(webhookURL, "https://chat.googleapis.com/") {
+			return fmt.Errorf("webhook URL deve começar com https://chat.googleapis.com/")
+		}
+		cfg.GoogleChat.WebhookURL = webhookURL
+	}
+	if cmd.Flags().Changed("timeout") && timeout > 0 {
+		cfg.GoogleChat.Timeout = timeout
 	}
 
 	return nil
@@ -973,6 +1322,62 @@ func testEmail(cfg config.EmailConfig, target string) error {
 		yellow.Println("⚠ Envio de email de teste não implementado ainda")
 		// TODO: Implementar envio de email de teste
 	}
+
+	return nil
+}
+
+// testWhatsApp testa conectividade do WhatsApp chamando endpoint de metadados.
+func testWhatsApp(cfg config.WhatsAppConfig) error {
+	if cfg.PhoneNumberID == "" || cfg.AccessToken == "" {
+		red := color.New(color.FgRed, color.Bold)
+		red.Println("✗ WhatsApp não está configurado")
+		return fmt.Errorf("whatsapp não está configurado")
+	}
+
+	apiURL := cfg.APIURL
+	if apiURL == "" {
+		apiURL = "https://graph.facebook.com"
+	}
+
+	apiVersion := cfg.APIVersion
+	if apiVersion == "" {
+		apiVersion = "v18.0"
+	}
+
+	url := fmt.Sprintf("%s/%s/%s", apiURL, apiVersion, cfg.PhoneNumberID)
+
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro ao criar requisição: %v\n", err)
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.AccessToken))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro de conectividade: %v\n", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	latency := time.Since(start)
+
+	if resp.StatusCode != http.StatusOK {
+		red := color.New(color.FgRed, color.Bold)
+		red.Printf("✗ Erro na API: Status %d\n", resp.StatusCode)
+		return fmt.Errorf("erro na API: status %d", resp.StatusCode)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Printf("✓ Conectividade OK (%dms)\n", latency.Milliseconds())
 
 	return nil
 }

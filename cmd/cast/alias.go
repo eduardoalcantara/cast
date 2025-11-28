@@ -23,8 +23,9 @@ Exemplos:
 }
 
 var aliasAddCmd = &cobra.Command{
-	Use:   "add <nome> <provider> <target>",
-	Short: "Adiciona um novo alias",
+	Use:          "add <nome> <provider> <target>",
+	Short:        "Adiciona um novo alias",
+	SilenceUsage: true,
 	Long: `Adiciona um novo alias que mapeia um nome para um provider e target.
 
 Argumentos:
@@ -94,8 +95,9 @@ Argumentos:
 }
 
 var aliasListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "Lista todos os aliases",
+	Use:          "list",
+	Short:        "Lista todos os aliases",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadConfig()
 		if err != nil {
@@ -129,9 +131,10 @@ var aliasListCmd = &cobra.Command{
 }
 
 var aliasRemoveCmd = &cobra.Command{
-	Use:   "remove <nome>",
-	Short: "Remove um alias",
-	Args:  cobra.ExactArgs(1),
+	Use:          "remove <nome>",
+	Short:        "Remove um alias",
+	SilenceUsage: true,
+	Args:         cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		aliasName := args[0]
 		confirm, _ := cmd.Flags().GetBool("confirm")
@@ -188,10 +191,11 @@ var aliasRemoveCmd = &cobra.Command{
 }
 
 var aliasShowCmd = &cobra.Command{
-	Use:   "show <nome>",
-	Short: "Mostra detalhes de um alias",
-	Long: `Mostra detalhes de um alias específico em formato "Ficha Técnica".`,
-	Args:  cobra.ExactArgs(1),
+	Use:          "show <nome>",
+	Short:        "Mostra detalhes de um alias",
+	SilenceUsage: true,
+	Long:         `Mostra detalhes de um alias específico em formato "Ficha Técnica".`,
+	Args:         cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		aliasName := args[0]
 
@@ -240,8 +244,9 @@ var aliasShowCmd = &cobra.Command{
 }
 
 var aliasUpdateCmd = &cobra.Command{
-	Use:   "update <nome>",
-	Short: "Atualiza um alias existente",
+	Use:          "update <nome>",
+	Short:        "Atualiza um alias existente",
+	SilenceUsage: true,
 	Long: `Atualiza um alias existente.
 
 Permite atualização parcial: apenas os campos fornecidos nas flags são atualizados.

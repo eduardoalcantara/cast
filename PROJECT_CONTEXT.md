@@ -1,7 +1,7 @@
 # CAST - PROJECT STATUS
 
 **Última atualização:** 2025-01-XX
-**Versão:** 0.4.0 (Fase 04 - Advanced Drivers)
+**Versão:** 0.5.0 (Fase 05 - Testes Manuais e Correções)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
@@ -82,6 +82,18 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Testes unitários (11 novos testes)
 - [x] Tratamento de erros específicos (janela de 24h do WhatsApp)
 - [x] Suporte a múltiplos destinatários em ambos os providers
+
+### ✅ Fase 05: Testes Manuais e Correções Críticas
+- [x] Bug crítico do Telegram corrigido (chat_id como integer)
+- [x] Flag `--verbose` implementada para debugging
+- [x] Comando `config sources` implementado
+- [x] Leitura de configuração YAML corrigida (tags yaml/json)
+- [x] Valores booleanos corrigidos (use_tls, use_ssl)
+- [x] Suporte a aliases no comando send (`cast send me "message"`)
+- [x] Provider de email adaptado para MailHog (sem autenticação)
+- [x] Mensagens de erro duplicadas corrigidas
+- [x] Precedência de configuração corrigida (ENV > File > Default)
+- [x] Testes manuais realizados com configurações reais
 
 ---
 
@@ -253,7 +265,28 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 
 ---
 
-## 📋 FASE 05 - BUILD & RELEASE (PENDENTE)
+## ✅ FASE 05 - DETALHAMENTO
+
+### ✅ Correções Críticas
+- [x] Bug do Telegram: `chat_id` convertido para `int64` quando numérico
+- [x] Leitura de configuração: Tags `yaml` e `json` adicionadas em todas as structs
+- [x] Valores booleanos: `applyDefaults()` usa `viper.IsSet()` para respeitar `false` explícitos
+- [x] Mensagens de erro: `SilenceErrors: true` adicionado para evitar duplicação
+
+### ✅ Novas Funcionalidades
+- [x] Flag `--verbose` no comando `send` para debugging detalhado
+- [x] Comando `config sources` para mostrar origem de cada configuração
+- [x] Suporte a aliases no comando send (2 ou 3 argumentos)
+- [x] Provider de email com autenticação condicional (suporte MailHog)
+
+### ✅ Melhorias Técnicas
+- [x] Precedência de configuração corrigida: ENV > File > Default
+- [x] Debug info no provider Telegram (`showDebugInfo`)
+- [x] Validação de email ajustada (smtp_host e smtp_port obrigatórios)
+
+---
+
+## 📋 FASE 06 - BUILD & RELEASE (PENDENTE)
 
 ### 🔴 Build
 - [ ] Cross-compilation (Windows/Linux)
@@ -294,6 +327,7 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `results/02_RESULTS.md` - Resultados da Fase 02
 - [x] `results/03_RESULTS.md` - Resultados da Fase 03
 - [x] `results/04_RESULTS.md` - Resultados da Fase 04
+- [x] `results/05_RESULTS.md` - Resultados da Fase 05
 
 ### ⚠️ Pendente
 - [ ] README principal do projeto
@@ -394,11 +428,11 @@ type Config struct {
 ## 📈 MÉTRICAS
 
 ### Código
-- **Linhas de código:** ~3.200
+- **Linhas de código:** ~3.700
 - **Arquivos Go:** 17
 - **Arquivos de Teste:** 7
 - **Comandos CLI:** 5 (root, send, alias, config, gateway)
-- **Subcomandos:** 13 (alias: 5, config: 5, gateway: 5)
+- **Subcomandos:** 14 (alias: 5, config: 6, gateway: 5)
 - **Funções de Help:** 20+ funções customizadas em `help.go`
 - **Providers:** 4 implementados (Telegram, Email, WhatsApp, Google Chat)
 
@@ -410,29 +444,24 @@ type Config struct {
 ### Documentação
 - **Especificações:** 8 arquivos
 - **Tutoriais:** 4 arquivos
-- **Resultados:** 3 documentos (Fase 01, 02 e 03)
-- **Cobertura:** ~100% da Fase 03 (objetivos do prompt)
+- **Resultados:** 5 documentos (Fase 01, 02, 03, 04 e 05)
+- **Cobertura:** ~100% das Fases implementadas
 
 ---
 
 ## 🎯 PRÓXIMOS PASSOS
 
-### Curto Prazo (Fase 03 - Melhorias)
-1. Implementar funcionalidades pendentes (export/import, update, test, etc.)
-2. Completar testes unitários
-3. Wizard para WhatsApp e Google Chat (quando providers forem implementados)
+### Curto Prazo (Fase 05 - Melhorias)
+1. Testes adicionais com diferentes configurações
+2. Validação de edge cases
+3. Melhorias baseadas em feedback
 
-### Médio Prazo (Fase 04)
-1. Implementar `WhatsAppProvider` (Meta Cloud API)
-2. Implementar `GoogleChatProvider` (Incoming Webhook)
-3. Testes unitários para novos providers
-4. Wizard para novos providers
-
-### Longo Prazo (Fase 05)
+### Médio Prazo (Fase 06)
 1. Cross-compilation (Windows/Linux)
 2. Scripts de build para múltiplas plataformas
 3. Versionamento automático
 4. Releases no GitHub
+5. Testes de integração automatizados
 
 ### Longo Prazo
 1. README completo
@@ -453,14 +482,17 @@ type Config struct {
 
 ## 📝 NOTAS
 
-- O projeto está na **Fase 04** (Advanced Drivers) - ✅ **CONCLUÍDA**
+- O projeto está na **Fase 05** (Testes Manuais e Correções) - ✅ **CONCLUÍDA**
 - A estrutura base está completa e funcional
 - **Todos os 4 drivers estão implementados e testados** (Telegram, Email, WhatsApp, Google Chat)
+- **Todos os bugs críticos foram corrigidos** (chat_id, configuração YAML, booleanos)
 - O comando `send` está totalmente funcional para todos os providers
 - Comandos CRUD de configuração implementados e funcionais
 - Wizard interativo disponível para todos os providers
 - Help customizado 100% em português
-- Próximo foco: Fase 05 (Build & Release) ou melhorias incrementais
+- Flag `--verbose` e comando `config sources` para debugging
+- Testes manuais validados com configurações reais
+- Próximo foco: Fase 06 (Build & Release) ou melhorias incrementais
 
 ---
 
