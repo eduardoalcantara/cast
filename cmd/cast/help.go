@@ -81,6 +81,15 @@ func ShowSendHelp() {
 	fmt.Println()
 	fmt.Println("  # Email para múltiplos destinatários")
 	fmt.Println("  cast send mail \"admin@empresa.com;dev@empresa.com\" \"Relatório Diário\"")
+	fmt.Println()
+	fmt.Println("  # Email com assunto customizado")
+	fmt.Println("  cast send mail admin@empresa.com \"Bom dia!\" --subject \"Assunto Personalizado\"")
+	fmt.Println()
+	fmt.Println("  # Email com anexo")
+	fmt.Println("  cast send mail admin@empresa.com \"Veja o anexo\" --attachment arquivo.pdf")
+	fmt.Println()
+	fmt.Println("  # Email com assunto e múltiplos anexos")
+	fmt.Println("  cast send mail admin@empresa.com \"Relatório\" --subject \"Relatório Mensal\" --attachment relatorio.pdf --attachment dados.xlsx")
 }
 
 // ShowAliasHelp exibe o help do comando alias.

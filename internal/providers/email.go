@@ -2,12 +2,22 @@ package providers
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"io/ioutil"
+	"mime"
 	"net/smtp"
+	"path/filepath"
 	"strings"
 
 	"github.com/eduardoalcantara/cast/internal/config"
 )
+
+// EmailProviderExtended define interface estendida para email com assunto e anexos.
+type EmailProviderExtended interface {
+	Provider
+	SendEmail(target string, message string, subject string, attachments []string) error
+}
 
 // emailProvider implementa o Provider para Email (SMTP).
 type emailProvider struct {
@@ -21,6 +31,13 @@ func NewEmailProvider(cfg *config.EmailConfig) Provider {
 	}
 }
 
+// NewEmailProviderExtended cria uma nova instância do EmailProvider como EmailProviderExtended.
+func NewEmailProviderExtended(cfg *config.EmailConfig) EmailProviderExtended {
+	return &emailProvider{
+		config: cfg,
+	}
+}
+
 // Name retorna o nome do provider.
 func (p *emailProvider) Name() string {
 	return "email"
@@ -28,6 +45,11 @@ func (p *emailProvider) Name() string {
 
 // Send envia uma mensagem via Email (SMTP).
 func (p *emailProvider) Send(target string, message string) error {
+	return p.SendEmail(target, message, "", nil)
+}
+
+// SendEmail envia uma mensagem via Email (SMTP) com assunto e anexos opcionais.
+func (p *emailProvider) SendEmail(target string, message string, subject string, attachments []string) error {
 	// Parseia múltiplos targets usando função do config
 	targets := config.ParseTargets(target)
 
@@ -58,18 +80,34 @@ func (p *emailProvider) Send(target string, message string) error {
 		fromName = "CAST Notifications"
 	}
 
-	// Monta headers
-	headers := []string{
-		fmt.Sprintf("From: %s <%s>", fromName, fromEmail),
-		fmt.Sprintf("To: %s", strings.Join(targets, ", ")),
-		"Subject: Notificação CAST",
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-		"",
-		message,
+	// Define assunto (usa padrão se não fornecido)
+	if subject == "" {
+		subject = "Notificação CAST"
 	}
 
-	emailBody := strings.Join(headers, "\r\n")
+	// Monta o corpo do email (com ou sem anexos)
+	var emailBody []byte
+	var err error
+
+	if len(attachments) > 0 {
+		// Email com anexos (multipart/mixed)
+		emailBody, err = p.buildMultipartMessage(fromName, fromEmail, targets, subject, message, attachments)
+		if err != nil {
+			return fmt.Errorf("erro ao montar mensagem com anexos: %w", err)
+		}
+	} else {
+		// Email simples (text/plain)
+		headers := []string{
+			fmt.Sprintf("From: %s <%s>", fromName, fromEmail),
+			fmt.Sprintf("To: %s", strings.Join(targets, ", ")),
+			fmt.Sprintf("Subject: %s", subject),
+			"MIME-Version: 1.0",
+			"Content-Type: text/plain; charset=UTF-8",
+			"",
+			message,
+		}
+		emailBody = []byte(strings.Join(headers, "\r\n"))
+	}
 
 	// Autenticação (apenas se username e password estiverem configurados)
 	var auth smtp.Auth
@@ -78,17 +116,15 @@ func (p *emailProvider) Send(target string, message string) error {
 	}
 
 	// Envia email
-	var err error
-
 	if p.config.UseSSL {
 		// SSL (porta 465) - requer conexão TLS direta
-		err = p.sendWithSSL(addr, auth, fromEmail, targets, []byte(emailBody))
+		err = p.sendWithSSL(addr, auth, fromEmail, targets, emailBody)
 	} else if p.config.UseTLS {
 		// TLS (porta 587) - StartTLS
-		err = p.sendWithTLS(addr, auth, fromEmail, targets, []byte(emailBody))
+		err = p.sendWithTLS(addr, auth, fromEmail, targets, emailBody)
 	} else {
 		// Sem TLS/SSL (não recomendado, mas suportado) - usado para MailHog
-		err = p.sendWithoutAuth(addr, auth, fromEmail, targets, []byte(emailBody))
+		err = p.sendWithoutAuth(addr, auth, fromEmail, targets, emailBody)
 	}
 
 	if err != nil {
@@ -96,6 +132,72 @@ func (p *emailProvider) Send(target string, message string) error {
 	}
 
 	return nil
+}
+
+// buildMultipartMessage monta uma mensagem MIME multipart com anexos.
+func (p *emailProvider) buildMultipartMessage(fromName, fromEmail string, targets []string, subject, message string, attachments []string) ([]byte, error) {
+	boundary := "----=_Part_" + fmt.Sprintf("%d", len(attachments))
+
+	var parts []string
+
+	// Headers principais
+	parts = append(parts, fmt.Sprintf("From: %s <%s>", fromName, fromEmail))
+	parts = append(parts, fmt.Sprintf("To: %s", strings.Join(targets, ", ")))
+	parts = append(parts, fmt.Sprintf("Subject: %s", subject))
+	parts = append(parts, "MIME-Version: 1.0")
+	parts = append(parts, fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"", boundary))
+	parts = append(parts, "")
+
+	// Corpo da mensagem
+	parts = append(parts, fmt.Sprintf("--%s", boundary))
+	parts = append(parts, "Content-Type: text/plain; charset=UTF-8")
+	parts = append(parts, "Content-Transfer-Encoding: 8bit")
+	parts = append(parts, "")
+	parts = append(parts, message)
+	parts = append(parts, "")
+
+	// Anexos
+	for _, attachmentPath := range attachments {
+		// Lê o arquivo
+		fileData, err := ioutil.ReadFile(attachmentPath)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao ler arquivo %s: %w", attachmentPath, err)
+		}
+
+		// Obtém o nome do arquivo
+		fileName := filepath.Base(attachmentPath)
+
+		// Detecta o tipo MIME
+		mimeType := mime.TypeByExtension(filepath.Ext(attachmentPath))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+
+		// Codifica em base64
+		encodedData := base64.StdEncoding.EncodeToString(fileData)
+
+		// Adiciona o anexo
+		parts = append(parts, fmt.Sprintf("--%s", boundary))
+		parts = append(parts, fmt.Sprintf("Content-Type: %s; name=\"%s\"", mimeType, fileName))
+		parts = append(parts, "Content-Transfer-Encoding: base64")
+		parts = append(parts, fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"", fileName))
+		parts = append(parts, "")
+
+		// Divide o conteúdo base64 em linhas de 76 caracteres (padrão MIME)
+		for i := 0; i < len(encodedData); i += 76 {
+			end := i + 76
+			if end > len(encodedData) {
+				end = len(encodedData)
+			}
+			parts = append(parts, encodedData[i:end])
+		}
+		parts = append(parts, "")
+	}
+
+	// Fecha o multipart
+	parts = append(parts, fmt.Sprintf("--%s--", boundary))
+
+	return []byte(strings.Join(parts, "\r\n")), nil
 }
 
 // sendWithSSL envia email usando SSL (porta 465).

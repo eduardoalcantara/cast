@@ -30,7 +30,13 @@ A ordem de precedência para configuração é:
 Múltiplos Recipientes:
   Você pode enviar para múltiplos recipientes separando-os por vírgula (,) ou ponto-e-vírgula (;):
   - cast send mail "user1@exemplo.com,user2@exemplo.com" "Mensagem"
-  - cast send tg "123456789;987654321" "Mensagem"`,
+  - cast send tg "123456789;987654321" "Mensagem"
+
+Email com Assunto e Anexos:
+  Para emails, você pode usar flags adicionais:
+  - --subject, -s: Define o assunto do email (padrão: "Notificação CAST")
+  - --attachment, -a: Adiciona um arquivo anexo (pode ser usado múltiplas vezes)
+  - cast send mail admin@empresa.com "Mensagem" --subject "Assunto" --attachment arquivo.pdf`,
 	Example: `  # Usando alias 'me' (mais simples)
   cast send me "Deploy finalizado com sucesso"
 
@@ -46,8 +52,17 @@ Múltiplos Recipientes:
   # Email para um destinatário
   cast send mail admin@empresa.com "Bom dia!"
 
-  # Email para múltiplos destinatários
-  cast send mail "admin@empresa.com;dev@empresa.com" "Relatório Diário"`,
+	# Email para múltiplos destinatários
+	cast send mail "admin@empresa.com;dev@empresa.com" "Relatório Diário"
+
+	# Email com assunto customizado
+	cast send mail admin@empresa.com "Bom dia!" --subject "Assunto Personalizado"
+
+	# Email com anexo
+	cast send mail admin@empresa.com "Veja o anexo" --attachment arquivo.pdf
+
+	# Email com assunto e múltiplos anexos
+	cast send mail admin@empresa.com "Relatório" --subject "Relatório Mensal" --attachment relatorio.pdf --attachment dados.xlsx`,
 	Args: cobra.MinimumNArgs(2), // Aceita 2 args (alias + message) ou 3 args (provider + target + message)
 	RunE: func(cmd *cobra.Command, args []string) error {
 		verbose, _ := cmd.Flags().GetBool("verbose")
@@ -130,7 +145,22 @@ Múltiplos Recipientes:
 		}
 
 		// Envia mensagem
-		err = provider.Send(actualTarget, message)
+		// Se for email e tiver flags de assunto/anexo, usa método estendido
+		if actualProviderName == "email" || actualProviderName == "mail" {
+			subject, _ := cmd.Flags().GetString("subject")
+			attachments, _ := cmd.Flags().GetStringSlice("attachment")
+
+			// Type assertion para EmailProviderExtended
+			if emailProv, ok := provider.(providers.EmailProviderExtended); ok {
+				err = emailProv.SendEmail(actualTarget, message, subject, attachments)
+			} else {
+				// Fallback para método padrão se não conseguir fazer type assertion
+				err = provider.Send(actualTarget, message)
+			}
+		} else {
+			err = provider.Send(actualTarget, message)
+		}
+
 		if err != nil {
 			red := color.New(color.FgRed, color.Bold)
 			red.Fprintf(os.Stderr, "✗ Erro ao enviar mensagem: %v\n", err)
@@ -150,6 +180,8 @@ Múltiplos Recipientes:
 
 func init() {
 	sendCmd.Flags().BoolP("verbose", "v", false, "Mostra informações detalhadas de debug")
+	sendCmd.Flags().StringP("subject", "s", "", "Assunto do email (apenas para provider email)")
+	sendCmd.Flags().StringSliceP("attachment", "a", []string{}, "Caminho do arquivo anexo (apenas para provider email, pode ser usado múltiplas vezes)")
 }
 
 // showDebugInfo exibe informações de debug quando --verbose está ativo.

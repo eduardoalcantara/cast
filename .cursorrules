@@ -61,4 +61,4 @@
   - copie o arquivo executável para `./run` sempre que compilar.
 
 ## protocolo de trabalho
-  - SEMPRE que terminar um serviço/resposta, execute `./run/cast.exe send me "Tarefa Concluída: X"`, onde X é um pequeno resumo em até 4000 caracteres do que foi feito na tarefa.
+  - SEMPRE que terminar um serviço/resposta, execute `./run/cast.exe send me "Tarefa Concluída nº XX:[ENTER]RR"`, onde XX é o nº do prompt e RR é um pequeno resumo em até 4000 caracteres do que foi feito na tarefa. Inclua o nº

@@ -44,7 +44,8 @@ func GetProviderWithVerbose(name string, conf *config.Config, verbose bool) (Pro
 			return nil, fmt.Errorf("configuração do Email incompleta: %s são obrigatórios", strings.Join(missing, ", "))
 		}
 		// Username e password são opcionais (servidores como MailHog não requerem autenticação)
-		return NewEmailProvider(&conf.Email), nil
+		// Retorna como EmailProviderExtended para suportar assunto e anexos
+		return NewEmailProviderExtended(&conf.Email), nil
 
 	case "whatsapp", "zap":
 		if conf == nil {
