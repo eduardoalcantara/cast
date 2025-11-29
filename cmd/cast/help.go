@@ -50,7 +50,7 @@ func ShowSendHelp() {
 	fmt.Println()
 	fmt.Println("Argumentos:")
 	fmt.Println("  alias     - Nome do alias configurado (ex: me, team, alerts)")
-	fmt.Println("  provider  - Nome do provider (tg, mail, zap, google_chat)")
+	fmt.Println("  provider  - Nome do provider (tg, mail, zap, google_chat, waha)")
 	fmt.Println("  target    - Destinatário (chat_id, email, número, webhook_url) ou 'me' para padrão")
 	fmt.Println("  message   - Mensagem a ser enviada")
 	fmt.Println()
@@ -90,6 +90,10 @@ func ShowSendHelp() {
 	fmt.Println()
 	fmt.Println("  # Email com assunto e múltiplos anexos")
 	fmt.Println("  cast send mail admin@empresa.com \"Relatório\" --subject \"Relatório Mensal\" --attachment relatorio.pdf --attachment dados.xlsx")
+	fmt.Println()
+	fmt.Println("  # WAHA (WhatsApp HTTP API)")
+	fmt.Println("  cast send waha 5511999998888@c.us \"Notificação via WAHA\"")
+	fmt.Println("  cast send waha 120363XXXXX@g.us \"Mensagem para grupo\"")
 }
 
 // ShowAliasHelp exibe o help do comando alias.

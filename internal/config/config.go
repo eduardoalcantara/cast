@@ -16,6 +16,7 @@ type Config struct {
 	WhatsApp  WhatsAppConfig              `mapstructure:"whatsapp" yaml:"whatsapp" json:"whatsapp"`
 	Email     EmailConfig                 `mapstructure:"email" yaml:"email" json:"email"`
 	GoogleChat GoogleChatConfig           `mapstructure:"google_chat" yaml:"google_chat" json:"google_chat"`
+	WAHA      WAHAConfig                  `mapstructure:"waha" yaml:"waha" json:"waha"`
 	Aliases   map[string]AliasConfig      `mapstructure:"aliases" yaml:"aliases" json:"aliases"`
 }
 
@@ -54,6 +55,14 @@ type EmailConfig struct {
 type GoogleChatConfig struct {
 	WebhookURL string `mapstructure:"webhook_url" yaml:"webhook_url" json:"webhook_url"`
 	Timeout    int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
+}
+
+// WAHAConfig contém as configurações do WAHA (WhatsApp HTTP API).
+type WAHAConfig struct {
+	APIURL  string `mapstructure:"api_url" yaml:"api_url" json:"api_url"`
+	Session string `mapstructure:"session" yaml:"session" json:"session"`
+	APIKey  string `mapstructure:"api_key" yaml:"api_key" json:"api_key"`
+	Timeout int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }
 
 // AliasConfig representa um alias para facilitar o uso do CLI.
@@ -105,6 +114,12 @@ func Load() error {
 	// Google Chat
 	viper.BindEnv("google_chat.webhook_url")
 	viper.BindEnv("google_chat.timeout")
+
+	// WAHA
+	viper.BindEnv("waha.api_url")
+	viper.BindEnv("waha.session")
+	viper.BindEnv("waha.api_key")
+	viper.BindEnv("waha.timeout")
 
 	// Busca arquivo de configuração no mesmo diretório do executável
 	// Primeiro tenta obter o diretório do executável
@@ -257,6 +272,20 @@ func applyEnvOverrides(cfg *Config) {
 	if envVal := viper.GetInt("google_chat.timeout"); envVal > 0 {
 		cfg.GoogleChat.Timeout = envVal
 	}
+
+	// WAHA
+	if envVal := viper.GetString("waha.api_url"); envVal != "" {
+		cfg.WAHA.APIURL = envVal
+	}
+	if envVal := viper.GetString("waha.session"); envVal != "" {
+		cfg.WAHA.Session = envVal
+	}
+	if envVal := viper.GetString("waha.api_key"); envVal != "" {
+		cfg.WAHA.APIKey = envVal
+	}
+	if envVal := viper.GetInt("waha.timeout"); envVal > 0 {
+		cfg.WAHA.Timeout = envVal
+	}
 }
 
 // applyDefaults aplica valores padrão para campos opcionais.
@@ -307,6 +336,14 @@ func (c *Config) applyDefaults() {
 	if c.GoogleChat.Timeout == 0 {
 		c.GoogleChat.Timeout = 30
 	}
+
+	// WAHA defaults
+	if c.WAHA.Session == "" {
+		c.WAHA.Session = "default"
+	}
+	if c.WAHA.Timeout == 0 {
+		c.WAHA.Timeout = 30
+	}
 }
 
 // Validate valida a configuração obrigatória.
@@ -323,6 +360,9 @@ func (c *Config) Validate() error {
 	}
 	if c.GoogleChat.Timeout < 5 || c.GoogleChat.Timeout > 300 {
 		return fmt.Errorf("google_chat.timeout deve estar entre 5 e 300 segundos")
+	}
+	if c.WAHA.Timeout < 5 || c.WAHA.Timeout > 300 {
+		return fmt.Errorf("waha.timeout deve estar entre 5 e 300 segundos")
 	}
 
 	// Validação de Email: TLS e SSL são mutuamente exclusivos

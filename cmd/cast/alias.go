@@ -352,6 +352,8 @@ func normalizeProviderName(name string) string {
 		return "zap"
 	case "google_chat", "googlechat":
 		return "google_chat"
+	case "waha":
+		return "waha"
 	default:
 		return ""
 	}

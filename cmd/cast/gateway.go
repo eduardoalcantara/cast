@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/smtp"
@@ -92,6 +93,8 @@ var gatewayShowCmd = &cobra.Command{
 			showWhatsAppConfig(cfg.WhatsApp, mask)
 		case "google_chat":
 			showGoogleChatConfig(cfg.GoogleChat, mask)
+		case "waha":
+			showWAHAConfig(cfg.WAHA, mask)
 		default:
 			return fmt.Errorf("provider desconhecido: %s", providerName)
 		}
@@ -144,6 +147,8 @@ var gatewayRemoveCmd = &cobra.Command{
 			cfg.WhatsApp = config.WhatsAppConfig{}
 		case "google_chat":
 			cfg.GoogleChat = config.GoogleChatConfig{}
+		case "waha":
+			cfg.WAHA = config.WAHAConfig{}
 		}
 
 		// Salva
@@ -197,6 +202,8 @@ Falha se o gateway não estiver configurado.`,
 			exists = cfg.WhatsApp.PhoneNumberID != "" && cfg.WhatsApp.AccessToken != ""
 		case "google_chat":
 			exists = cfg.GoogleChat.WebhookURL != ""
+		case "waha":
+			exists = cfg.WAHA.APIURL != ""
 		}
 
 		if !exists {
@@ -214,6 +221,18 @@ Falha se o gateway não estiver configurado.`,
 			}
 		case "email":
 			if err := updateEmailViaFlags(cmd, cfg); err != nil {
+				return err
+			}
+		case "whatsapp":
+			if err := updateWhatsAppViaFlags(cmd, cfg); err != nil {
+				return err
+			}
+		case "google_chat":
+			if err := updateGoogleChatViaFlags(cmd, cfg); err != nil {
+				return err
+			}
+		case "waha":
+			if err := updateWAHAViaFlags(cmd, cfg); err != nil {
 				return err
 			}
 		default:
@@ -278,6 +297,8 @@ Google Chat: Valida URL do webhook`,
 			return testWhatsApp(cfg.WhatsApp)
 		case "google_chat":
 			return testGoogleChat(cfg.GoogleChat, target)
+		case "waha":
+			return testWAHA(cfg.WAHA)
 		default:
 			return fmt.Errorf("teste não implementado para: %s", normalized)
 		}
@@ -304,6 +325,10 @@ func init() {
 	gatewayAddCmd.Flags().String("api-version", "", "API Version do WhatsApp (padrão: v18.0)")
 	// Flags Google Chat
 	gatewayAddCmd.Flags().String("webhook-url", "", "Webhook URL do Google Chat")
+	// Flags WAHA
+	gatewayAddCmd.Flags().String("api-url", "", "URL da API WAHA")
+	gatewayAddCmd.Flags().String("session", "default", "Nome da sessão WAHA")
+	gatewayAddCmd.Flags().String("api-key", "", "API Key WAHA (opcional)")
 	gatewayAddCmd.Flags().BoolP("interactive", "i", false, "Modo wizard interativo")
 
 	// Flags para gateway update (mesmas do add)
@@ -325,6 +350,10 @@ func init() {
 	gatewayUpdateCmd.Flags().String("api-version", "", "API Version do WhatsApp")
 	// Flags Google Chat
 	gatewayUpdateCmd.Flags().String("webhook-url", "", "Webhook URL do Google Chat")
+	// Flags WAHA
+	gatewayUpdateCmd.Flags().String("api-url", "", "URL da API WAHA")
+	gatewayUpdateCmd.Flags().String("session", "", "Nome da sessão WAHA")
+	gatewayUpdateCmd.Flags().String("api-key", "", "API Key WAHA (opcional)")
 
 	gatewayTestCmd.Flags().StringP("target", "t", "", "Target para teste (opcional, para Email e Google Chat)")
 
@@ -350,6 +379,8 @@ func normalizeGatewayName(name string) string {
 		return "whatsapp"
 	case "google_chat", "googlechat":
 		return "google_chat"
+	case "waha":
+		return "waha"
 	default:
 		return ""
 	}
@@ -362,7 +393,7 @@ func runGatewayWizard(providerName string) error {
 		var selected string
 		prompt := &survey.Select{
 			Message: "Selecione o gateway a configurar:",
-			Options: []string{"telegram", "email", "whatsapp", "google_chat"},
+			Options: []string{"telegram", "email", "whatsapp", "google_chat", "waha"},
 		}
 		if err := survey.AskOne(prompt, &selected); err != nil {
 			return err
@@ -391,6 +422,8 @@ func runGatewayWizard(providerName string) error {
 		return runWhatsAppWizard(cfg)
 	case "google_chat":
 		return runGoogleChatWizard(cfg)
+	case "waha":
+		return runWAHAWizard(cfg)
 	default:
 		return fmt.Errorf("wizard não implementado para: %s", normalized)
 	}
@@ -417,6 +450,8 @@ func runGatewayAddFlags(cmd *cobra.Command, providerName string) error {
 		return addWhatsAppViaFlags(cmd, cfg)
 	case "google_chat":
 		return addGoogleChatViaFlags(cmd, cfg)
+	case "waha":
+		return addWAHAViaFlags(cmd, cfg)
 	default:
 		return fmt.Errorf("add via flags não implementado para: %s (use --interactive)", normalized)
 	}
@@ -808,6 +843,219 @@ func runGoogleChatWizard(cfg *config.Config) error {
 	return nil
 }
 
+// runWAHAWizard executa o wizard para WAHA.
+func runWAHAWizard(cfg *config.Config) error {
+	cyan := color.New(color.FgCyan, color.Bold)
+	yellow := color.New(color.FgYellow)
+	green := color.New(color.FgHiGreen, color.Bold)
+	red := color.New(color.FgRed, color.Bold)
+
+	// Banner educativo
+	cyan.Println("╔════════════════════════════════════════════════════════════╗")
+	cyan.Println("║   CONFIGURAÇÃO WAHA (WhatsApp HTTP API)                  ║")
+	cyan.Println("╚════════════════════════════════════════════════════════════╝")
+	fmt.Println()
+
+	yellow.Println("⚠️  AVISOS IMPORTANTES:")
+	yellow.Println("   -  WAHA deve estar RODANDO antes de configurar o CAST")
+	yellow.Println("   -  Use Docker: docker run -d -p 3000:3000 devlikeapro/waha")
+	yellow.Println("   -  WAHA NÃO é API oficial do WhatsApp (use por sua conta)")
+	yellow.Println("   -  Ideal para: notificações pessoais e grupos pequenos")
+	fmt.Println()
+
+	// Perguntar se WAHA já está rodando
+	var wahaRunning bool
+	promptRunning := &survey.Confirm{
+		Message: "WAHA já está rodando?",
+		Default: false,
+	}
+	if err := survey.AskOne(promptRunning, &wahaRunning); err != nil {
+		return err
+	}
+
+	if !wahaRunning {
+		yellow.Println("\n📦 Para instalar WAHA, execute:")
+		fmt.Println("   docker run -d --name waha -p 3000:3000 -v waha-data:/app/.sessions devlikeapro/waha")
+		fmt.Println()
+		yellow.Println("Após iniciar, acesse http://localhost:3000 e escaneie o QR code")
+		fmt.Println()
+
+		var continueAnyway bool
+		promptContinue := &survey.Confirm{
+			Message: "Continuar configuração mesmo assim?",
+			Default: false,
+		}
+		if err := survey.AskOne(promptContinue, &continueAnyway); err != nil {
+			return err
+		}
+
+		if !continueAnyway {
+			cyan.Println("\n✋ Configuração cancelada. Instale WAHA e tente novamente.")
+			return nil
+		}
+	}
+
+	// Perguntas de configuração
+	var answers struct {
+		APIURL  string `survey:"apiurl"`
+		Session string `survey:"session"`
+		APIKey  string `survey:"apikey"`
+		Timeout string `survey:"timeout"`
+	}
+
+	questions := []*survey.Question{
+		{
+			Name: "apiurl",
+			Prompt: &survey.Input{
+				Message: "URL da API WAHA:",
+				Default: "http://localhost:3000",
+				Help:    "URL onde o WAHA está rodando (ex: http://localhost:3000 ou https://waha.exemplo.com)",
+			},
+			Validate: func(val interface{}) error {
+				url, ok := val.(string)
+				if !ok {
+					return fmt.Errorf("URL inválida")
+				}
+				url = strings.TrimSpace(url)
+				if url == "" {
+					return fmt.Errorf("URL obrigatória")
+				}
+				if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+					return fmt.Errorf("URL deve começar com http:// ou https://")
+				}
+				return nil
+			},
+		},
+		{
+			Name: "session",
+			Prompt: &survey.Input{
+				Message: "Nome da sessão WAHA:",
+				Default: "default",
+				Help:    "Nome da sessão criada no WAHA (geralmente 'default')",
+			},
+			Validate: func(val interface{}) error {
+				session, ok := val.(string)
+				if !ok {
+					return fmt.Errorf("nome inválido")
+				}
+				session = strings.TrimSpace(session)
+				if session == "" {
+					return fmt.Errorf("nome da sessão obrigatório")
+				}
+				return nil
+			},
+		},
+		{
+			Name: "apikey",
+			Prompt: &survey.Input{
+				Message: "API Key (opcional - deixe vazio se não configurou):",
+				Help:    "Se WAHA tiver autenticação habilitada (variável WHATSAPP_API_KEY)",
+			},
+		},
+		{
+			Name: "timeout",
+			Prompt: &survey.Input{
+				Message: "Timeout em segundos:",
+				Default: "30",
+				Help:    "Tempo máximo de espera por resposta (mínimo 5, recomendado 30)",
+			},
+			Validate: func(val interface{}) error {
+				timeoutStr, ok := val.(string)
+				if !ok {
+					return fmt.Errorf("deve ser um número")
+				}
+				timeout, err := strconv.Atoi(timeoutStr)
+				if err != nil {
+					return fmt.Errorf("deve ser um número")
+				}
+				if timeout < 5 {
+					return fmt.Errorf("timeout mínimo: 5 segundos")
+				}
+				if timeout > 300 {
+					return fmt.Errorf("timeout máximo: 300 segundos (5 minutos)")
+				}
+				return nil
+			},
+		},
+	}
+
+	if err := survey.Ask(questions, &answers); err != nil {
+		return err
+	}
+
+	// Processar respostas
+	timeout := 30
+	if answers.Timeout != "" {
+		if t, err := strconv.Atoi(answers.Timeout); err == nil && t > 0 {
+			timeout = t
+		}
+	}
+
+	session := strings.TrimSpace(answers.Session)
+	if session == "" {
+		session = "default"
+	}
+
+	// Atualizar configuração
+	cfg.WAHA.APIURL = strings.TrimRight(answers.APIURL, "/")
+	cfg.WAHA.Session = session
+	cfg.WAHA.APIKey = strings.TrimSpace(answers.APIKey)
+	cfg.WAHA.Timeout = timeout
+
+	// Resumo visual
+	fmt.Println()
+	cyan.Println("╔════════════════════════════════════════════════════════════╗")
+	cyan.Println("║   RESUMO DA CONFIGURAÇÃO                                 ║")
+	cyan.Println("╚════════════════════════════════════════════════════════════╝")
+	fmt.Printf("  API URL:    %s\n", cfg.WAHA.APIURL)
+	fmt.Printf("  Session:    %s\n", cfg.WAHA.Session)
+	if cfg.WAHA.APIKey != "" {
+		fmt.Printf("  API Key:    %s\n", maskToken(cfg.WAHA.APIKey))
+	} else {
+		fmt.Println("  API Key:    (não configurada)")
+	}
+	fmt.Printf("  Timeout:    %d segundos\n", cfg.WAHA.Timeout)
+	fmt.Println()
+
+	// Confirmação final
+	var confirm bool
+	promptConfirm := &survey.Confirm{
+		Message: "Salvar esta configuração?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptConfirm, &confirm); err != nil {
+		return err
+	}
+
+	if !confirm {
+		yellow.Println("\n✋ Configuração cancelada")
+		return nil
+	}
+
+	// Salvar
+	if err := config.Save(cfg); err != nil {
+		red.Printf("\n❌ Erro ao salvar: %v\n", err)
+		return err
+	}
+
+	green.Println("\n✅ Configuração salva com sucesso!")
+	fmt.Println()
+
+	// Próximos passos
+	cyan.Println("📋 PRÓXIMOS PASSOS:")
+	fmt.Println("   1. Teste a conectividade:")
+	fmt.Printf("      cast gateway test waha\n\n")
+	fmt.Println("   2. Envie mensagem de teste:")
+	fmt.Printf("      cast send waha SEUNUMERO@c.us \"Teste\"\n\n")
+	fmt.Println("   3. Crie aliases para facilitar:")
+	fmt.Printf("      cast alias add meu-zap waha SEUNUMERO@c.us\n\n")
+
+	yellow.Println("💡 DICA: Para obter seu Chat ID, acesse:")
+	yellow.Printf("   %s/api/%s/chats\n", cfg.WAHA.APIURL, cfg.WAHA.Session)
+
+	return nil
+}
+
 // addTelegramViaFlags adiciona Telegram via flags.
 func addTelegramViaFlags(cmd *cobra.Command, cfg *config.Config) error {
 	token, _ := cmd.Flags().GetString("token")
@@ -956,6 +1204,51 @@ func addGoogleChatViaFlags(cmd *cobra.Command, cfg *config.Config) error {
 	return nil
 }
 
+// addWAHAViaFlags adiciona WAHA via flags.
+func addWAHAViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	apiURL, _ := cmd.Flags().GetString("api-url")
+	session, _ := cmd.Flags().GetString("session")
+	apiKey, _ := cmd.Flags().GetString("api-key")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	// Validações
+	if apiURL == "" {
+		return fmt.Errorf("--api-url obrigatório. Exemplo: --api-url http://localhost:3000")
+	}
+
+	apiURL = strings.TrimRight(apiURL, "/")
+	if !strings.HasPrefix(apiURL, "http://") && !strings.HasPrefix(apiURL, "https://") {
+		return fmt.Errorf("--api-url deve começar com http:// ou https://")
+	}
+
+	if session == "" {
+		session = "default"
+	}
+
+	if timeout == 0 {
+		timeout = 30
+	}
+	if timeout < 5 {
+		return fmt.Errorf("--timeout mínimo: 5 segundos")
+	}
+
+	// Atualizar config
+	cfg.WAHA.APIURL = apiURL
+	cfg.WAHA.Session = session
+	cfg.WAHA.APIKey = strings.TrimSpace(apiKey)
+	cfg.WAHA.Timeout = timeout
+
+	// Salvar
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("erro ao salvar: %w", err)
+	}
+
+	green := color.New(color.FgHiGreen, color.Bold)
+	green.Println("✅ Configuração do WAHA salva com sucesso!")
+
+	return nil
+}
+
 // showAllGateways mostra todos os gateways configurados.
 func showAllGateways(cfg *config.Config, mask bool) {
 	cyan := color.New(color.FgCyan)
@@ -986,9 +1279,16 @@ func showAllGateways(cfg *config.Config, mask bool) {
 		cyan.Println()
 	}
 
+	// WAHA
+	if cfg.WAHA.APIURL != "" {
+		showWAHAConfig(cfg.WAHA, mask)
+		cyan.Println()
+	}
+
 	// Verifica se nenhum gateway está configurado
 	if cfg.Telegram.Token == "" && cfg.Email.SMTPHost == "" &&
-		cfg.WhatsApp.PhoneNumberID == "" && cfg.GoogleChat.WebhookURL == "" {
+		cfg.WhatsApp.PhoneNumberID == "" && cfg.GoogleChat.WebhookURL == "" &&
+		cfg.WAHA.APIURL == "" {
 		yellow := color.New(color.FgYellow)
 		yellow.Println("Nenhum gateway configurado")
 		yellow.Println("Use 'cast gateway add <provider>' para configurar")
@@ -1051,6 +1351,27 @@ func showGoogleChatConfig(cfg config.GoogleChatConfig, mask bool) {
 		cyan.Println("  Webhook URL: *****")
 	} else {
 		cyan.Printf("  Webhook URL: %s\n", cfg.WebhookURL)
+	}
+	cyan.Printf("  Timeout: %d segundos\n", cfg.Timeout)
+}
+
+func showWAHAConfig(cfg config.WAHAConfig, mask bool) {
+	cyan := color.New(color.FgCyan)
+	cyan.Println("WAHA:")
+	cyan.Printf("  API URL: %s\n", cfg.APIURL)
+	cyan.Printf("  Session: %s\n", cfg.Session)
+	if mask {
+		if cfg.APIKey != "" {
+			cyan.Printf("  API Key: %s\n", maskToken(cfg.APIKey))
+		} else {
+			cyan.Println("  API Key: (não configurada)")
+		}
+	} else {
+		if cfg.APIKey != "" {
+			cyan.Printf("  API Key: %s\n", cfg.APIKey)
+		} else {
+			cyan.Println("  API Key: (não configurada)")
+		}
 	}
 	cyan.Printf("  Timeout: %d segundos\n", cfg.Timeout)
 }
@@ -1168,6 +1489,40 @@ func updateGoogleChatViaFlags(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	if cmd.Flags().Changed("timeout") && timeout > 0 {
 		cfg.GoogleChat.Timeout = timeout
+	}
+
+	return nil
+}
+
+// updateWAHAViaFlags atualiza WAHA via flags (apenas campos fornecidos).
+func updateWAHAViaFlags(cmd *cobra.Command, cfg *config.Config) error {
+	apiURL, _ := cmd.Flags().GetString("api-url")
+	session, _ := cmd.Flags().GetString("session")
+	apiKey, _ := cmd.Flags().GetString("api-key")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	// Atualiza apenas campos fornecidos
+	if cmd.Flags().Changed("api-url") {
+		apiURL = strings.TrimRight(apiURL, "/")
+		if !strings.HasPrefix(apiURL, "http://") && !strings.HasPrefix(apiURL, "https://") {
+			return fmt.Errorf("--api-url deve começar com http:// ou https://")
+		}
+		cfg.WAHA.APIURL = apiURL
+	}
+	if cmd.Flags().Changed("session") {
+		if session == "" {
+			session = "default"
+		}
+		cfg.WAHA.Session = session
+	}
+	if cmd.Flags().Changed("api-key") {
+		cfg.WAHA.APIKey = strings.TrimSpace(apiKey)
+	}
+	if cmd.Flags().Changed("timeout") && timeout > 0 {
+		if timeout < 5 {
+			return fmt.Errorf("--timeout mínimo: 5 segundos")
+		}
+		cfg.WAHA.Timeout = timeout
 	}
 
 	return nil
@@ -1405,6 +1760,163 @@ func testGoogleChat(cfg config.GoogleChatConfig, target string) error {
 	} else {
 		green := color.New(color.FgHiGreen, color.Bold)
 		green.Println("✓ URL do webhook válida")
+	}
+
+	return nil
+}
+
+// testWAHA testa conectividade com WAHA.
+func testWAHA(cfg config.WAHAConfig) error {
+	cyan := color.New(color.FgCyan, color.Bold)
+	green := color.New(color.FgHiGreen, color.Bold)
+	yellow := color.New(color.FgYellow)
+	red := color.New(color.FgRed, color.Bold)
+
+	cyan.Println("╔════════════════════════════════════════════════════════════╗")
+	cyan.Println("║   TESTE DE CONECTIVIDADE WAHA                            ║")
+	cyan.Println("╚════════════════════════════════════════════════════════════╝")
+	fmt.Println()
+
+	// Teste 1: Health Check do WAHA
+	fmt.Print("🔍 [1/3] Verificando se WAHA está respondendo... ")
+
+	healthURL := fmt.Sprintf("%s/api/health", cfg.APIURL)
+	client := &http.Client{Timeout: time.Duration(cfg.Timeout) * time.Second}
+
+	respHealth, err := client.Get(healthURL)
+	if err != nil {
+		red.Println("❌ FALHOU")
+		red.Printf("\n   Erro: %v\n", err)
+		red.Println("\n📋 DIAGNÓSTICO:")
+		red.Println("   -  WAHA não está acessível")
+		red.Println("   -  Verifique se o container está rodando: docker ps | grep waha")
+		red.Println("   -  Verifique se a URL está correta")
+		red.Printf("   -  URL configurada: %s\n", cfg.APIURL)
+		return err
+	}
+	respHealth.Body.Close()
+
+	if respHealth.StatusCode != 200 {
+		red.Println("❌ FALHOU")
+		red.Printf("\n   Status HTTP: %d\n", respHealth.StatusCode)
+		return fmt.Errorf("health check retornou status %d", respHealth.StatusCode)
+	}
+
+	green.Println("✅ OK")
+
+	// Teste 2: Verificar se sessão existe
+	fmt.Print("🔍 [2/3] Verificando se sessão existe... ")
+
+	sessionURL := fmt.Sprintf("%s/api/sessions/%s", cfg.APIURL, cfg.Session)
+	req, err := http.NewRequest("GET", sessionURL, nil)
+	if err != nil {
+		red.Println("❌ FALHOU")
+		return err
+	}
+
+	if cfg.APIKey != "" {
+		req.Header.Set("X-Api-Key", cfg.APIKey)
+	}
+
+	respSession, err := client.Do(req)
+	if err != nil {
+		red.Println("❌ FALHOU")
+		red.Printf("\n   Erro: %v\n", err)
+		return err
+	}
+	defer respSession.Body.Close()
+
+	if respSession.StatusCode == 401 {
+		red.Println("❌ FALHOU")
+		red.Println("\n   Erro: Autenticação falhou")
+		red.Println("   -  API Key incorreta ou ausente")
+		red.Println("   -  Verifique se WAHA foi iniciado com WHATSAPP_API_KEY")
+		return fmt.Errorf("autenticação falhou")
+	}
+
+	if respSession.StatusCode == 404 {
+		red.Println("❌ FALHOU")
+		red.Println("\n   Erro: Sessão não encontrada")
+		red.Println("\n📋 SOLUÇÃO:")
+		red.Println("   Crie a sessão com:")
+		red.Printf("   curl -X POST %s/api/sessions/start \\\n", cfg.APIURL)
+		red.Printf("     -H 'Content-Type: application/json' \\\n")
+		red.Printf("     -d '{\"name\": \"%s\"}'\n", cfg.Session)
+		return fmt.Errorf("sessão '%s' não existe", cfg.Session)
+	}
+
+	if respSession.StatusCode != 200 {
+		red.Println("❌ FALHOU")
+		red.Printf("\n   Status HTTP: %d\n", respSession.StatusCode)
+		return fmt.Errorf("status %d", respSession.StatusCode)
+	}
+
+	green.Println("✅ OK")
+
+	// Parse info da sessão
+	var sessionInfo map[string]interface{}
+	if err := json.NewDecoder(respSession.Body).Decode(&sessionInfo); err != nil {
+		yellow.Println("⚠️  Não foi possível parsear resposta")
+		return nil
+	}
+
+	// Teste 3: Verificar status da sessão
+	fmt.Print("🔍 [3/3] Verificando status da sessão... ")
+
+	status, ok := sessionInfo["status"].(string)
+	if !ok {
+		yellow.Println("⚠️  Status desconhecido")
+		status = "UNKNOWN"
+	}
+
+	switch status {
+	case "WORKING":
+		green.Println("✅ CONECTADA")
+
+	case "SCAN_QR_CODE":
+		yellow.Println("⚠️  AGUARDANDO QR CODE")
+		fmt.Println()
+		yellow.Println("📱 A sessão não está conectada:")
+		yellow.Printf("   1. Acesse: %s\n", cfg.APIURL)
+		yellow.Println("   2. Vá em 'Sessions' → clique na sessão")
+		yellow.Println("   3. Escaneie o QR code com seu WhatsApp")
+
+	case "FAILED", "STOPPED":
+		red.Println("❌ INATIVA")
+		red.Println("\n📋 SOLUÇÃO:")
+		red.Println("   Reinicie a sessão:")
+		red.Printf("   curl -X POST %s/api/sessions/%s/restart\n", cfg.APIURL, cfg.Session)
+		return fmt.Errorf("sessão está inativa (status: %s)", status)
+
+	default:
+		yellow.Printf("⚠️  Status: %s\n", status)
+	}
+
+	// Resumo final
+	fmt.Println()
+	cyan.Println("╔════════════════════════════════════════════════════════════╗")
+	cyan.Println("║   RESUMO DO TESTE                                        ║")
+	cyan.Println("╚════════════════════════════════════════════════════════════╝")
+	fmt.Printf("  URL:         %s\n", cfg.APIURL)
+	fmt.Printf("  Session:     %s\n", cfg.Session)
+	fmt.Printf("  Status:      %s\n", status)
+	fmt.Printf("  Timeout:     %d segundos\n", cfg.Timeout)
+
+	if cfg.APIKey != "" {
+		fmt.Printf("  Auth:        Habilitada\n")
+	} else {
+		fmt.Printf("  Auth:        Desabilitada\n")
+	}
+
+	fmt.Println()
+
+	if status == "WORKING" {
+		green.Println("✅ TUDO OK! Pronto para enviar mensagens.")
+		fmt.Println()
+		cyan.Println("📋 TESTE DE ENVIO:")
+		fmt.Println("   cast send waha SEUNUMERO@c.us \"Teste\"")
+	} else {
+		yellow.Println("⚠️  Configure a sessão antes de enviar mensagens")
 	}
 
 	return nil

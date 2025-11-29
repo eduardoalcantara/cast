@@ -32,6 +32,10 @@ Múltiplos Recipientes:
   - cast send mail "user1@exemplo.com,user2@exemplo.com" "Mensagem"
   - cast send tg "123456789;987654321" "Mensagem"
 
+WAHA (WhatsApp HTTP API):
+  Formato do target: 5511999998888@c.us (contato) ou 120363XXX@g.us (grupo)
+  - cast send waha 5511999998888@c.us "Notificação controlada"
+
 Email com Assunto e Anexos:
   Para emails, você pode usar flags adicionais:
   - --subject, -s: Define o assunto do email (padrão: "Notificação CAST")
@@ -62,7 +66,11 @@ Email com Assunto e Anexos:
 	cast send mail admin@empresa.com "Veja o anexo" --attachment arquivo.pdf
 
 	# Email com assunto e múltiplos anexos
-	cast send mail admin@empresa.com "Relatório" --subject "Relatório Mensal" --attachment relatorio.pdf --attachment dados.xlsx`,
+	cast send mail admin@empresa.com "Relatório" --subject "Relatório Mensal" --attachment relatorio.pdf --attachment dados.xlsx
+
+	# WAHA (WhatsApp HTTP API)
+	cast send waha 5511999998888@c.us "Notificação via WAHA"
+	cast send waha 120363XXXXX@g.us "Mensagem para grupo"`,
 	Args: cobra.MinimumNArgs(2), // Aceita 2 args (alias + message) ou 3 args (provider + target + message)
 	RunE: func(cmd *cobra.Command, args []string) error {
 		verbose, _ := cmd.Flags().GetBool("verbose")

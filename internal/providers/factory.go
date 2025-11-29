@@ -63,13 +63,23 @@ func GetProviderWithVerbose(name string, conf *config.Config, verbose bool) (Pro
 		// Webhook URL pode estar vazia se for passada como target no comando send
 		return NewGoogleChatProvider(&conf.GoogleChat), nil
 
+	case "waha":
+		if conf == nil {
+			return nil, fmt.Errorf("configuração do WAHA não encontrada")
+		}
+		if conf.WAHA.APIURL == "" {
+			return nil, fmt.Errorf("configuração do WAHA incompleta: api_url é obrigatório")
+		}
+		return NewWAHAProvider(conf.WAHA)
+
 	default:
-		return nil, fmt.Errorf("provider desconhecido: %s (suportados: tg, mail, zap, google_chat)", name)
+		return nil, fmt.Errorf("provider desconhecido: %s (suportados: tg, mail, zap, google_chat, waha)", name)
 	}
 }
 
 // normalizeProviderName normaliza o nome do provider para comparação.
 func normalizeProviderName(name string) string {
+	name = strings.ToLower(name)
 	switch name {
 	case "tg", "telegram":
 		return "telegram"
@@ -79,6 +89,8 @@ func normalizeProviderName(name string) string {
 		return "whatsapp"
 	case "google_chat", "googlechat":
 		return "google_chat"
+	case "waha":
+		return "waha"
 	default:
 		return name
 	}

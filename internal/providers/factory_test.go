@@ -111,6 +111,46 @@ func TestGetProvider_Email_MissingConfig(t *testing.T) {
 	}
 }
 
+func TestGetProvider_WAHA(t *testing.T) {
+	cfg := &config.Config{
+		WAHA: config.WAHAConfig{
+			APIURL:  "http://localhost:3000",
+			Session: "default",
+			Timeout: 30,
+		},
+	}
+
+	provider, err := GetProvider("waha", cfg)
+	if err != nil {
+		t.Fatalf("Erro ao obter provider WAHA: %v", err)
+	}
+
+	if provider == nil {
+		t.Fatal("Provider não deveria ser nil")
+	}
+
+	if provider.Name() != "WAHA" {
+		t.Errorf("Esperado nome 'WAHA', obtido '%s'", provider.Name())
+	}
+}
+
+func TestGetProvider_WAHA_MissingAPIURL(t *testing.T) {
+	cfg := &config.Config{
+		WAHA: config.WAHAConfig{
+			// APIURL vazio
+		},
+	}
+
+	provider, err := GetProvider("waha", cfg)
+	if err == nil {
+		t.Error("Esperado erro para API URL ausente")
+	}
+
+	if provider != nil {
+		t.Error("Provider não deveria ser retornado sem API URL")
+	}
+}
+
 func TestNormalizeProviderName(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -124,6 +164,7 @@ func TestNormalizeProviderName(t *testing.T) {
 		{"whatsapp", "whatsapp"},
 		{"google_chat", "google_chat"},
 		{"googlechat", "google_chat"},
+		{"waha", "waha"},
 		{"unknown", "unknown"},
 	}
 
