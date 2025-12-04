@@ -121,25 +121,24 @@ func Load() error {
 	viper.BindEnv("waha.api_key")
 	viper.BindEnv("waha.timeout")
 
-	// Busca arquivo de configuração no mesmo diretório do executável
-	// Primeiro tenta obter o diretório do executável
-	execPath, err := os.Executable()
-	var configDir string
-	if err == nil {
-		// Obtém o diretório do executável
-		configDir = filepath.Dir(execPath)
-		// Normaliza o caminho (resolve symlinks no Linux/Mac)
-		configDir, _ = filepath.EvalSymlinks(configDir)
-	} else {
-		// Fallback: usa diretório atual se não conseguir obter o executável
-		configDir = "."
-	}
+	// Busca arquivo de configuração de forma transparente:
+	// 1. Primeiro procura no diretório atual (onde o usuário está executando)
+	// 2. Se não encontrar, procura no diretório do executável (fallback)
 
 	viper.SetConfigName("cast")
-	// Adiciona o diretório do executável como primeiro caminho (prioridade)
-	viper.AddConfigPath(configDir)
-	// Adiciona diretório atual como fallback
+	// Adiciona diretório atual como primeiro caminho (prioridade)
 	viper.AddConfigPath(".")
+
+	// Adiciona diretório do executável como fallback
+	execPath, err := os.Executable()
+	if err == nil {
+		// Obtém o diretório do executável
+		execDir := filepath.Dir(execPath)
+		// Normaliza o caminho (resolve symlinks no Linux/Mac)
+		execDir, _ = filepath.EvalSymlinks(execDir)
+		// Adiciona como fallback (segunda opção)
+		viper.AddConfigPath(execDir)
+	}
 
 	// Tenta carregar arquivo em múltiplos formatos (ordem: yaml, json, properties)
 	configTypes := []string{"yaml", "json", "properties"}

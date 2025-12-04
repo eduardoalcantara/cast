@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    ports:
+      - "3000:3000"
+    environment:
+      # Credenciais
+      - WAHA_API_KEY=3694cf9a93c74402bfdd94785b3f2a82
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=8ca465cca5d549109007900b60251578
+      - WHATSAPP_SWAGGER_USERNAME=admin
+      - WHATSAPP_SWAGGER_PASSWORD=8ca465cca5d549109007900b60251578
+
+      # Engine (opcional - escolha um)
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      # - WHATSAPP_DEFAULT_ENGINE=NOWEB  # alternativa mais leve
+
+    volumes:
+      - waha-sessions:/app/.sessions
+
+    restart: unless-stopped
+
+    # IMPORTANTE: Network mode padrão (bridge)
+    # Não use network_mode: host em Windows/Mac
+
+volumes:
+  waha-sessions:
+    driver: local

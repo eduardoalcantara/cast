@@ -1,14 +1,14 @@
 # CAST - PROJECT STATUS
 
 **Última atualização:** 2025-01-XX
-**Versão:** 0.5.0 (Fase 05 - Testes Manuais e Correções)
+**Versão:** 0.6.0 (Fase 06 - Provider WAHA)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
 
 ## 📊 VISÃO GERAL
 
-O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envio agnóstico de mensagens (Fire & Forget) via múltiplos gateways: Telegram, WhatsApp, Email e Google Chat.
+O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envio agnóstico de mensagens (Fire & Forget) via múltiplos gateways: Telegram, WhatsApp, Email, Google Chat e WAHA.
 
 **Stack:** Go 1.22+, Cobra, Viper, fatih/color
 
@@ -94,6 +94,18 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Mensagens de erro duplicadas corrigidas
 - [x] Precedência de configuração corrigida (ENV > File > Default)
 - [x] Testes manuais realizados com configurações reais
+
+### ✅ Fase 06: Provider WAHA (WhatsApp HTTP API)
+- [x] Driver WAHA (`waha.go`) - API HTTP sobre WhatsApp Web
+- [x] Validações robustas de Chat ID (`@c.us` e `@g.us`)
+- [x] Suporte a múltiplos destinatários
+- [x] Wizard interativo educativo com avisos sobre dependência externa
+- [x] Teste de conectividade em 3 etapas (health check, sessão, status)
+- [x] Suporte a API Key para autenticação
+- [x] Integração completa na Factory e CLI
+- [x] Testes unitários (8 testes, 100% passando)
+- [x] Tutorial completo criado (`documents/05_TUTORIAL_WAHA.md`)
+- [x] Especificação técnica profunda criada
 
 ---
 
@@ -286,7 +298,42 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 
 ---
 
-## 📋 FASE 06 - BUILD & RELEASE (PENDENTE)
+## ✅ FASE 06 - DETALHAMENTO
+
+### ✅ Driver WAHA (`internal/providers/waha.go`)
+- [x] Implementação com `net/http`
+- [x] HTTP POST para API WAHA (`/api/sendText`)
+- [x] Suporte a múltiplos destinatários
+- [x] Validação robusta de Chat ID (`@c.us` para contatos, `@g.us` para grupos)
+- [x] Tratamento de erros HTTP com mensagens educativas
+- [x] Suporte a API Key via header `X-Api-Key`
+- [x] Cliente HTTP reutilizável com timeout configurável
+- [x] Testes unitários (8 testes)
+
+### ✅ Integração na Factory (`internal/providers/factory.go`)
+- [x] WAHA adicionado ao switch
+- [x] Validação de configuração obrigatória
+- [x] Mensagens de erro claras
+- [x] Suporte a `GetProviderWithVerbose`
+
+### ✅ Wizards e Flags (`cmd/cast/gateway.go`)
+- [x] `runWAHAWizard()` - Wizard completo com validação e avisos educativos
+- [x] `addWAHAViaFlags()` - Configuração via flags
+- [x] `updateWAHAViaFlags()` - Atualização parcial
+- [x] `showWAHAConfig()` - Exibição de configuração
+- [x] `testWAHA()` - Teste de conectividade em 3 etapas (health, sessão, status)
+- [x] Flags adicionadas ao `init()` (`--api-url`, `--session`, `--api-key`)
+- [x] Integração no comando `gateway` (add/show/update/remove/test)
+
+### ✅ Configuração (`internal/config/config.go`)
+- [x] Struct `WAHAConfig` adicionada com tags `mapstructure`, `yaml`, `json`
+- [x] Validação no método `Validate()` para WAHA
+- [x] Suporte a ENV (`CAST_WAHA_*`)
+- [x] Aplicação de defaults (session: "default", timeout: 30)
+
+---
+
+## 📋 FASE 07 - BUILD & RELEASE (PENDENTE)
 
 ### 🔴 Build
 - [ ] Cross-compilation (Windows/Linux)
@@ -314,12 +361,14 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `06_PHASE_IMPLEMENTATION_PROTOCOL.md` - Protocolo de implementação
 - [x] `06_PENDING_SPECS.md` - Especificações pendentes
 - [x] `06_PENDING_SPECS_ARCH_RESPONSE.md` - Respostas do arquiteto
+- [x] `09_FASE_06_WAHA_IMPLEMENTATION_DEEP_SPECIFICATIONS.md` - Especificação técnica WAHA
 
 ### ✅ Tutoriais
 - [x] `01_TUTORIAL_TELEGRAM.md` - Configurar Telegram
 - [x] `02_TUTORIAL_WHATSAPP.md` - Configurar WhatsApp
 - [x] `03_TUTORIAL_EMAIL.md` - Configurar Email
 - [x] `04_TUTORIAL_GOOGLE_CHAT.md` - Configurar Google Chat
+- [x] `05_TUTORIAL_WAHA.md` - Configurar WAHA
 - [x] `README.md` - Índice dos tutoriais
 
 ### ✅ Resultados
@@ -328,6 +377,7 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `results/03_RESULTS.md` - Resultados da Fase 03
 - [x] `results/04_RESULTS.md` - Resultados da Fase 04
 - [x] `results/05_RESULTS.md` - Resultados da Fase 05
+- [x] `results/06_RESULTS.md` - Resultados da Fase 06
 
 ### ⚠️ Pendente
 - [ ] README principal do projeto
@@ -369,6 +419,8 @@ internal/
     whatsapp_test.go   ✅ Testes do WhatsApp
     googlechat.go      ✅ Driver Google Chat
     googlechat_test.go ✅ Testes do Google Chat
+    waha.go            ✅ Driver WAHA
+    waha_test.go       ✅ Testes do WAHA
 ```
 
 ### Interfaces Definidas
@@ -388,6 +440,7 @@ type Config struct {
     WhatsApp  WhatsAppConfig              ✅ Implementado
     Email     EmailConfig                 ✅ Implementado
     GoogleChat GoogleChatConfig           ✅ Implementado
+    WAHA      WAHAConfig                  ✅ Implementado
     Aliases   map[string]AliasConfig      ✅ Implementado
 }
 ```
@@ -428,35 +481,35 @@ type Config struct {
 ## 📈 MÉTRICAS
 
 ### Código
-- **Linhas de código:** ~3.700
-- **Arquivos Go:** 17
-- **Arquivos de Teste:** 7
+- **Linhas de código:** ~4.350
+- **Arquivos Go:** 19
+- **Arquivos de Teste:** 8
 - **Comandos CLI:** 5 (root, send, alias, config, gateway)
 - **Subcomandos:** 14 (alias: 5, config: 6, gateway: 5)
 - **Funções de Help:** 20+ funções customizadas em `help.go`
-- **Providers:** 4 implementados (Telegram, Email, WhatsApp, Google Chat)
+- **Providers:** 5 implementados (Telegram, Email, WhatsApp, Google Chat, WAHA)
 
 ### Testes
-- **Testes unitários:** 31 (20 anteriores + 11 novos da Fase 04)
+- **Testes unitários:** 39 (31 anteriores + 8 novos da Fase 06)
 - **Cobertura:** Todos os providers implementados testados
 - **Status:** ✅ Todos os testes passando
 
 ### Documentação
-- **Especificações:** 8 arquivos
-- **Tutoriais:** 4 arquivos
-- **Resultados:** 5 documentos (Fase 01, 02, 03, 04 e 05)
+- **Especificações:** 9 arquivos
+- **Tutoriais:** 5 arquivos
+- **Resultados:** 6 documentos (Fase 01, 02, 03, 04, 05 e 06)
 - **Cobertura:** ~100% das Fases implementadas
 
 ---
 
 ## 🎯 PRÓXIMOS PASSOS
 
-### Curto Prazo (Fase 05 - Melhorias)
-1. Testes adicionais com diferentes configurações
-2. Validação de edge cases
-3. Melhorias baseadas em feedback
+### Curto Prazo (Fase 06 - Melhorias)
+1. Testes manuais com WAHA real rodando
+2. Validação de envio para grupos
+3. Documentação de troubleshooting expandida
 
-### Médio Prazo (Fase 06)
+### Médio Prazo (Fase 07)
 1. Cross-compilation (Windows/Linux)
 2. Scripts de build para múltiplas plataformas
 3. Versionamento automático
@@ -482,9 +535,9 @@ type Config struct {
 
 ## 📝 NOTAS
 
-- O projeto está na **Fase 05** (Testes Manuais e Correções) - ✅ **CONCLUÍDA**
+- O projeto está na **Fase 06** (Provider WAHA) - ✅ **CONCLUÍDA**
 - A estrutura base está completa e funcional
-- **Todos os 4 drivers estão implementados e testados** (Telegram, Email, WhatsApp, Google Chat)
+- **Todos os 5 drivers estão implementados e testados** (Telegram, Email, WhatsApp, Google Chat, WAHA)
 - **Todos os bugs críticos foram corrigidos** (chat_id, configuração YAML, booleanos)
 - O comando `send` está totalmente funcional para todos os providers
 - Comandos CRUD de configuração implementados e funcionais
@@ -492,7 +545,8 @@ type Config struct {
 - Help customizado 100% em português
 - Flag `--verbose` e comando `config sources` para debugging
 - Testes manuais validados com configurações reais
-- Próximo foco: Fase 06 (Build & Release) ou melhorias incrementais
+- WAHA implementado como 5º provider (alternativa self-hosted ao WhatsApp Cloud)
+- Próximo foco: Fase 07 (Build & Release) ou melhorias incrementais
 
 ---
 

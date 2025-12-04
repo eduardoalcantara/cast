@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -35,6 +36,11 @@ Múltiplos Recipientes:
 WAHA (WhatsApp HTTP API):
   Formato do target: 5511999998888@c.us (contato) ou 120363XXX@g.us (grupo)
   - cast send waha 5511999998888@c.us "Notificação controlada"
+
+Quebras de Linha:
+  Use \n para quebra de linha simples e \n\n para linha em branco:
+  - cast send tg me "Linha 1\nLinha 2"
+  - cast send tg me "Parágrafo 1\n\nParágrafo 2"
 
 Email com Assunto e Anexos:
   Para emails, você pode usar flags adicionais:
@@ -70,7 +76,11 @@ Email com Assunto e Anexos:
 
 	# WAHA (WhatsApp HTTP API)
 	cast send waha 5511999998888@c.us "Notificação via WAHA"
-	cast send waha 120363XXXXX@g.us "Mensagem para grupo"`,
+	cast send waha 120363XXXXX@g.us "Mensagem para grupo"
+
+	# Mensagens com quebras de linha
+	cast send tg me "Linha 1\nLinha 2"
+	cast send tg me "Parágrafo 1\n\nParágrafo 2"`,
 	Args: cobra.MinimumNArgs(2), // Aceita 2 args (alias + message) ou 3 args (provider + target + message)
 	RunE: func(cmd *cobra.Command, args []string) error {
 		verbose, _ := cmd.Flags().GetBool("verbose")
@@ -79,7 +89,22 @@ Email com Assunto e Anexos:
 		cfg, err := config.LoadConfig()
 		if err != nil {
 			red := color.New(color.FgRed, color.Bold)
+			yellow := color.New(color.FgYellow)
 			red.Fprintf(os.Stderr, "✗ Erro ao carregar configuração: %v\n", err)
+
+			// Informa onde o CAST está procurando o arquivo
+			execPath, _ := os.Executable()
+			if execPath != "" {
+				execDir := filepath.Dir(execPath)
+				yellow.Fprintf(os.Stderr, "\n💡 Dica: O CAST procura cast.yaml em:\n")
+				yellow.Fprintf(os.Stderr, "   1. Diretório do executável: %s\n", execDir)
+				wd, _ := os.Getwd()
+				if wd != "" {
+					yellow.Fprintf(os.Stderr, "   2. Diretório atual: %s\n", wd)
+				}
+				yellow.Fprintf(os.Stderr, "   3. Variáveis de ambiente (CAST_*)\n\n")
+			}
+
 			return fmt.Errorf("erro de configuração: %w", err)
 		}
 
@@ -108,6 +133,7 @@ Email com Assunto e Anexos:
 			actualProviderName = alias.Provider
 			actualTarget = alias.Target
 			message = strings.Join(args[1:], " ")
+			message = processNewlines(message) // Processa quebras de linha
 			providerName = args[0] // Para debug
 			target = alias.Target  // Para debug
 		} else {
@@ -130,6 +156,7 @@ Email com Assunto e Anexos:
 			providerName = args[0]
 			target = args[1]
 			message = strings.Join(args[2:], " ")
+			message = processNewlines(message) // Processa quebras de linha
 			actualProviderName = providerName
 			actualTarget = target
 		}
@@ -248,6 +275,22 @@ func showDebugInfo(providerName, target, message string, cfg *config.Config) {
 	fmt.Println()
 	cyan.Println("=== FIM DEBUG ===")
 	fmt.Println()
+}
+
+// processNewlines processa sequências de quebra de linha na mensagem.
+// Converte \n em quebra de linha real e \n\n em linha em branco.
+func processNewlines(message string) string {
+	// Primeiro processa \n\n (duas quebras de linha = linha em branco)
+	// Usa um placeholder temporário para evitar processamento duplo
+	message = strings.ReplaceAll(message, "\\n\\n", "\x00DOUBLE_NEWLINE\x00")
+
+	// Depois processa \n (quebra de linha única)
+	message = strings.ReplaceAll(message, "\\n", "\n")
+
+	// Restaura \n\n (duas quebras de linha)
+	message = strings.ReplaceAll(message, "\x00DOUBLE_NEWLINE\x00", "\n\n")
+
+	return message
 }
 
 // showErrorDetails exibe detalhes adicionais do erro em modo verbose.
