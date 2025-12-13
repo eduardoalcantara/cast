@@ -46,7 +46,18 @@ Email com Assunto e Anexos:
   Para emails, você pode usar flags adicionais:
   - --subject, -s: Define o assunto do email (padrão: "Notificação CAST")
   - --attachment, -a: Adiciona um arquivo anexo (pode ser usado múltiplas vezes)
-  - cast send mail admin@empresa.com "Mensagem" --subject "Assunto" --attachment arquivo.pdf`,
+  - cast send mail admin@empresa.com "Mensagem" --subject "Assunto" --attachment arquivo.pdf
+
+Aguardar Resposta (IMAP):
+  Para emails, você pode aguardar uma resposta via IMAP:
+  - --wfr, --wait-for-response: Aguarda resposta via IMAP (usa tempo do config ou 30min)
+  - --wfr-minutes N: Especifica tempo de espera em minutos (sobrescreve config)
+  - --full, --full-layout: Inclui HTML no corpo da resposta (padrão: apenas texto)
+  - cast send mail destinatario@exemplo.com "Assunto" "Mensagem" --wfr
+  - cast send mail destinatario@exemplo.com "Assunto" "Mensagem" --wfr --wfr-minutes 15
+  - cast send mail destinatario@exemplo.com "Assunto" "Mensagem" --wfr-minutes 10
+  - Se uma resposta for encontrada, exibe o corpo completo da resposta
+  - Exit codes: 0 (resposta recebida), 3 (timeout sem resposta), 2 (config), 4 (auth)`,
 	Example: `  # Usando alias 'me' (mais simples)
   cast send me "Deploy finalizado com sucesso"
 
@@ -73,6 +84,11 @@ Email com Assunto e Anexos:
 
 	# Email com assunto e múltiplos anexos
 	cast send mail admin@empresa.com "Relatório" --subject "Relatório Mensal" --attachment relatorio.pdf --attachment dados.xlsx
+
+	# Email aguardando resposta (IMAP)
+	cast send mail destinatario@exemplo.com "Pergunta" "Você pode confirmar?" --wfr
+	cast send mail destinatario@exemplo.com "Assunto" "Mensagem" --wfr --wfr-minutes 15
+	cast send mail cliente@empresa.com "Solicitação" "Por favor, responda" --wait-for-response --wfr-minutes 30 --verbose
 
 	# WAHA (WhatsApp HTTP API)
 	cast send waha 5511999998888@c.us "Notificação via WAHA"
@@ -138,6 +154,7 @@ Email com Assunto e Anexos:
 			target = alias.Target  // Para debug
 		} else {
 			// Não é alias - formato tradicional: cast send provider target "mensagem" (3 argumentos)
+			// OU: cast send mail target "assunto" "mensagem" (4 argumentos para email)
 			if len(args) < 3 {
 				red := color.New(color.FgRed, color.Bold)
 				red.Fprintf(os.Stderr, "✗ Erro: Formato inválido.\n")
@@ -155,7 +172,27 @@ Email com Assunto e Anexos:
 			}
 			providerName = args[0]
 			target = args[1]
-			message = strings.Join(args[2:], " ")
+
+			// Para email/mail: se houver 4 argumentos e --subject não foi usado,
+			// o terceiro argumento é o assunto e o quarto é a mensagem
+			normalizedProvider := strings.ToLower(providerName)
+			if (normalizedProvider == "mail" || normalizedProvider == "email") && len(args) == 4 {
+				// Verifica se --subject não foi fornecido via flag
+				subjectFlag, _ := cmd.Flags().GetString("subject")
+				if subjectFlag == "" {
+					// Terceiro argumento é o assunto, quarto é a mensagem
+					// Armazena o assunto temporariamente (será usado depois)
+					cmd.Flags().Set("subject", args[2])
+					message = args[3]
+				} else {
+					// --subject foi fornecido, então todos os args após target são mensagem
+					message = strings.Join(args[2:], " ")
+				}
+			} else {
+				// Formato padrão: todos os args após target são mensagem
+				message = strings.Join(args[2:], " ")
+			}
+
 			message = processNewlines(message) // Processa quebras de linha
 			actualProviderName = providerName
 			actualTarget = target
@@ -179,7 +216,102 @@ Email com Assunto e Anexos:
 			return err
 		}
 
+		// Determinar se deve aguardar resposta e por quanto tempo
+		// NOVA ARQUITETURA: Flag Bool para presença + Flag Int opcional para valor customizado
+		waitMinutes := 0
+		wfrEnabled := false
+
+		// Verifica se flag bool foi usada (qualquer uma delas)
+		if cmd.Flags().Changed("wfr") || cmd.Flags().Changed("wait-for-response") {
+			wfrBool, _ := cmd.Flags().GetBool("wfr")
+			wfrLongBool, _ := cmd.Flags().GetBool("wait-for-response")
+
+			wfrEnabled = wfrBool || wfrLongBool
+
+			if verbose {
+				cyan := color.New(color.FgCyan)
+				cyan.Printf("[DEBUG] Flag --wfr detectada: %v\n", wfrEnabled)
+			}
+		}
+
+		// Se flag habilitada, determinar tempo
+		if wfrEnabled {
+			// Primeiro, verificar se --wfr-minutes foi especificado
+			if cmd.Flags().Changed("wfr-minutes") {
+				waitMinutes, _ = cmd.Flags().GetInt("wfr-minutes")
+				if verbose {
+					cyan := color.New(color.FgCyan)
+					cyan.Printf("[DEBUG] Usando --wfr-minutes: %d\n", waitMinutes)
+				}
+			}
+
+			// Se --wfr-minutes não foi usado ou é 0, usar config ou padrão
+			if waitMinutes == 0 {
+				if cfg == nil {
+					red := color.New(color.FgRed, color.Bold)
+					red.Fprintf(os.Stderr, "✗ Erro: --wait-for-response requer arquivo de configuração (cast.yaml) com dados de conexão IMAP\n")
+					return fmt.Errorf("--wait-for-response requer arquivo de configuração com dados de conexão IMAP")
+				}
+				if cfg.Email.WaitForResponseDefault > 0 {
+					waitMinutes = cfg.Email.WaitForResponseDefault
+					if verbose {
+						cyan := color.New(color.FgCyan)
+						cyan.Printf("[DEBUG] Usando wait_for_response_default_minutes do config: %d\n", waitMinutes)
+					}
+				} else {
+					waitMinutes = 30 // Padrão hard-coded
+					if verbose {
+						cyan := color.New(color.FgCyan)
+						cyan.Printf("[DEBUG] Usando padrão de 30 minutos\n")
+					}
+				}
+			}
+
+			// Validar contra máximo configurado
+			if cfg != nil && cfg.Email.WaitForResponseMax > 0 && waitMinutes > cfg.Email.WaitForResponseMax {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro: tempo de espera (%d min) excede o máximo configurado (%d min)\n", waitMinutes, cfg.Email.WaitForResponseMax)
+				return fmt.Errorf("tempo de espera (%d min) excede o máximo configurado (%d min)", waitMinutes, cfg.Email.WaitForResponseMax)
+			}
+		}
+
+		// CORREÇÃO: Se --wfr-minutes foi usado sozinho (sem --wfr), ativar automaticamente
+		if !wfrEnabled && cmd.Flags().Changed("wfr-minutes") {
+			waitMinutes, _ = cmd.Flags().GetInt("wfr-minutes")
+			if waitMinutes > 0 {
+				wfrEnabled = true
+				if verbose {
+					cyan := color.New(color.FgCyan)
+					cyan.Printf("[DEBUG] --wfr-minutes usado sozinho, ativando espera: %d min\n", waitMinutes)
+				}
+			}
+		}
+
+		// Se --wfr foi usado com provider diferente de email, avisa e ignora
+		if wfrEnabled && actualProviderName != "email" && actualProviderName != "mail" {
+			yellow := color.New(color.FgYellow)
+			yellow.Printf("⚠ Parâmetro --wait-for-response suportado apenas para provider 'mail'.\n")
+			wfrEnabled = false
+			waitMinutes = 0
+		}
+
+		if verbose {
+			cyan := color.New(color.FgCyan)
+			cyan.Printf("[DEBUG] waitMinutes calculado: %d\n", waitMinutes)
+			cyan.Printf("[DEBUG] wfrEnabled: %v\n", wfrEnabled)
+		}
+
+		// Validação de waitMinutes
+		if waitMinutes > 0 {
+			if cfg == nil {
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro: configuração não carregada\n")
+				return fmt.Errorf("configuração não carregada")
+			}
+		}
+
 		// Envia mensagem
+		var messageID string
 		// Se for email e tiver flags de assunto/anexo, usa método estendido
 		if actualProviderName == "email" || actualProviderName == "mail" {
 			subject, _ := cmd.Flags().GetString("subject")
@@ -187,10 +319,16 @@ Email com Assunto e Anexos:
 
 			// Type assertion para EmailProviderExtended
 			if emailProv, ok := provider.(providers.EmailProviderExtended); ok {
-				err = emailProv.SendEmail(actualTarget, message, subject, attachments)
+				messageID, err = emailProv.SendEmail(actualTarget, message, subject, attachments)
 			} else {
 				// Fallback para método padrão se não conseguir fazer type assertion
 				err = provider.Send(actualTarget, message)
+				if err == nil {
+					// Tenta obter Message-ID via getter
+					if emailProv, ok := provider.(providers.EmailProviderExtended); ok {
+						messageID = emailProv.GetLastMessageID()
+					}
+				}
 			}
 		} else {
 			err = provider.Send(actualTarget, message)
@@ -209,6 +347,51 @@ Email com Assunto e Anexos:
 		green := color.New(color.FgHiGreen, color.Bold)
 		green.Printf("✓ Mensagem enviada com sucesso via %s\n", provider.Name())
 
+		// Se waitMinutes > 0 e provider é email, aguarda resposta
+		if waitMinutes > 0 && wfrEnabled && (actualProviderName == "email" || actualProviderName == "mail") {
+			// Usa subject do flag ou padrão
+			subject, _ := cmd.Flags().GetString("subject")
+			if subject == "" {
+				subject = "Notificação CAST"
+			}
+
+			// Chama waitForEmailResponse
+			// Verifica flag --full ou --full-layout
+			fullLayout, _ := cmd.Flags().GetBool("full")
+			if !fullLayout {
+				fullLayout, _ = cmd.Flags().GetBool("full-layout")
+			}
+			// Se flag não foi especificada, usa config (default: false = sem HTML)
+			if !fullLayout && cfg != nil {
+				fullLayout = cfg.Email.WaitForResponseFullLayout
+			}
+
+			err = providers.WaitForEmailResponse(cfg.Email, messageID, subject, waitMinutes, fullLayout, verbose)
+			if err != nil {
+				// Trata exit codes específicos
+				if err == providers.ErrNoEmailResponse {
+					// Timeout sem resposta: exit code 3
+					os.Exit(3)
+				}
+				if err == providers.ErrIMAPConfigMissing {
+					// Configuração faltando: exit code 2
+					red := color.New(color.FgRed, color.Bold)
+					red.Fprintf(os.Stderr, "✗ %v\n", err)
+					os.Exit(2)
+				}
+				if err == providers.ErrIMAPAuth {
+					// Erro de autenticação: exit code 4
+					red := color.New(color.FgRed, color.Bold)
+					red.Fprintf(os.Stderr, "✗ %v\n", err)
+					os.Exit(4)
+				}
+				// Outros erros de rede/timeout: exit code 3
+				red := color.New(color.FgRed, color.Bold)
+				red.Fprintf(os.Stderr, "✗ Erro ao aguardar resposta: %v\n", err)
+				os.Exit(3)
+			}
+		}
+
 		return nil
 	},
 }
@@ -217,6 +400,10 @@ func init() {
 	sendCmd.Flags().BoolP("verbose", "v", false, "Mostra informações detalhadas de debug")
 	sendCmd.Flags().StringP("subject", "s", "", "Assunto do email (apenas para provider email)")
 	sendCmd.Flags().StringSliceP("attachment", "a", []string{}, "Caminho do arquivo anexo (apenas para provider email, pode ser usado múltiplas vezes)")
+	// Flags para aguardar resposta via IMAP (apenas para provider email)
+	sendCmd.Flags().Bool("wfr", false, "Aguarda resposta do destinatário via IMAP (usa tempo do config ou 30min)")
+	sendCmd.Flags().Bool("wait-for-response", false, "Aguarda resposta do destinatário via IMAP (forma longa)")
+	sendCmd.Flags().Int("wfr-minutes", 0, "Tempo de espera em minutos (0 = usar config/padrão, apenas para provider email)")
 }
 
 // showDebugInfo exibe informações de debug quando --verbose está ativo.

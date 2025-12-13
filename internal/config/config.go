@@ -49,6 +49,23 @@ type EmailConfig struct {
 	UseTLS    bool   `mapstructure:"use_tls" yaml:"use_tls" json:"use_tls"`
 	UseSSL    bool   `mapstructure:"use_ssl" yaml:"use_ssl" json:"use_ssl"`
 	Timeout   int    `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
+
+	// IMAP: usado apenas se wait-for-response estiver ativo
+	IMAPHost     string `mapstructure:"imap_host" yaml:"imap_host" json:"imap_host"`
+	IMAPPort     int    `mapstructure:"imap_port" yaml:"imap_port" json:"imap_port"`
+	IMAPUsername string `mapstructure:"imap_username" yaml:"imap_username" json:"imap_username"`
+	IMAPPassword string `mapstructure:"imap_password" yaml:"imap_password" json:"imap_password"`
+	IMAPUseTLS   bool   `mapstructure:"imap_use_tls" yaml:"imap_use_tls" json:"imap_use_tls"`
+	IMAPUseSSL   bool   `mapstructure:"imap_use_ssl" yaml:"imap_use_ssl" json:"imap_use_ssl"`
+	IMAPFolder        string `mapstructure:"imap_folder" yaml:"imap_folder" json:"imap_folder"`
+	IMAPTimeout       int    `mapstructure:"imap_timeout" yaml:"imap_timeout" json:"imap_timeout"`
+	IMAPPollInterval  int    `mapstructure:"imap_poll_interval_seconds" yaml:"imap_poll_interval_seconds" json:"imap_poll_interval_seconds"`
+
+	// Espera por resposta
+	WaitForResponseDefault  int  `mapstructure:"wait_for_response_default_minutes" yaml:"wait_for_response_default_minutes" json:"wait_for_response_default_minutes"`
+	WaitForResponseMax      int  `mapstructure:"wait_for_response_max_minutes" yaml:"wait_for_response_max_minutes" json:"wait_for_response_max_minutes"`
+	WaitForResponseMaxLines int  `mapstructure:"wait_for_response_max_lines" yaml:"wait_for_response_max_lines" json:"wait_for_response_max_lines"`
+	WaitForResponseFullLayout bool `mapstructure:"wait_for_response_full_layout" yaml:"wait_for_response_full_layout" json:"wait_for_response_full_layout"`
 }
 
 // GoogleChatConfig contém as configurações do Google Chat.
@@ -110,6 +127,21 @@ func Load() error {
 	viper.BindEnv("email.use_tls")
 	viper.BindEnv("email.use_ssl")
 	viper.BindEnv("email.timeout")
+	// IMAP
+	viper.BindEnv("email.imap_host")
+	viper.BindEnv("email.imap_port")
+	viper.BindEnv("email.imap_username")
+	viper.BindEnv("email.imap_password")
+	viper.BindEnv("email.imap_use_tls")
+	viper.BindEnv("email.imap_use_ssl")
+	viper.BindEnv("email.imap_folder")
+	viper.BindEnv("email.imap_timeout")
+	viper.BindEnv("email.imap_poll_interval_seconds")
+	// Wait for response
+	viper.BindEnv("email.wait_for_response_default_minutes")
+	viper.BindEnv("email.wait_for_response_max_minutes")
+	viper.BindEnv("email.wait_for_response_max_lines")
+	viper.BindEnv("email.wait_for_response_full_layout")
 
 	// Google Chat
 	viper.BindEnv("google_chat.webhook_url")
@@ -263,6 +295,47 @@ func applyEnvOverrides(cfg *Config) {
 	if envVal := viper.GetInt("email.timeout"); envVal > 0 {
 		cfg.Email.Timeout = envVal
 	}
+	// IMAP
+	if envVal := viper.GetString("email.imap_host"); envVal != "" {
+		cfg.Email.IMAPHost = envVal
+	}
+	if envVal := viper.GetInt("email.imap_port"); envVal > 0 {
+		cfg.Email.IMAPPort = envVal
+	}
+	if envVal := viper.GetString("email.imap_username"); envVal != "" {
+		cfg.Email.IMAPUsername = envVal
+	}
+	if envVal := viper.GetString("email.imap_password"); envVal != "" {
+		cfg.Email.IMAPPassword = envVal
+	}
+	if viper.IsSet("email.imap_use_tls") {
+		cfg.Email.IMAPUseTLS = viper.GetBool("email.imap_use_tls")
+	}
+	if viper.IsSet("email.imap_use_ssl") {
+		cfg.Email.IMAPUseSSL = viper.GetBool("email.imap_use_ssl")
+	}
+	if envVal := viper.GetString("email.imap_folder"); envVal != "" {
+		cfg.Email.IMAPFolder = envVal
+	}
+	if envVal := viper.GetInt("email.imap_timeout"); envVal > 0 {
+		cfg.Email.IMAPTimeout = envVal
+	}
+	if envVal := viper.GetInt("email.imap_poll_interval_seconds"); envVal > 0 {
+		cfg.Email.IMAPPollInterval = envVal
+	}
+	// Wait for response
+	if envVal := viper.GetInt("email.wait_for_response_default_minutes"); envVal >= 0 {
+		cfg.Email.WaitForResponseDefault = envVal
+	}
+	if envVal := viper.GetInt("email.wait_for_response_max_minutes"); envVal > 0 {
+		cfg.Email.WaitForResponseMax = envVal
+	}
+	if envVal := viper.GetInt("email.wait_for_response_max_lines"); envVal >= 0 {
+		cfg.Email.WaitForResponseMaxLines = envVal
+	}
+	if envVal := viper.GetBool("email.wait_for_response_full_layout"); envVal {
+		cfg.Email.WaitForResponseFullLayout = envVal
+	}
 
 	// Google Chat
 	if envVal := viper.GetString("google_chat.webhook_url"); envVal != "" {
@@ -331,6 +404,31 @@ func (c *Config) applyDefaults() {
 		c.Email.Timeout = 30
 	}
 
+	// Email IMAP defaults
+	if c.Email.IMAPPort == 0 {
+		if c.Email.IMAPUseSSL {
+			c.Email.IMAPPort = 993
+		} else if c.Email.IMAPUseTLS {
+			c.Email.IMAPPort = 143
+		} else if c.Email.IMAPHost != "" {
+			// Se IMAPHost está configurado mas não há flags SSL/TLS, assume SSL por padrão
+			c.Email.IMAPUseSSL = true
+			c.Email.IMAPPort = 993
+		}
+	}
+	if c.Email.IMAPFolder == "" {
+		c.Email.IMAPFolder = "INBOX"
+	}
+	if c.Email.IMAPTimeout == 0 {
+		c.Email.IMAPTimeout = 60
+	}
+	if c.Email.WaitForResponseMax == 0 {
+		c.Email.WaitForResponseMax = 120
+	}
+	if c.Email.WaitForResponseMaxLines < 0 {
+		c.Email.WaitForResponseMaxLines = 0
+	}
+
 	// Google Chat defaults
 	if c.GoogleChat.Timeout == 0 {
 		c.GoogleChat.Timeout = 30
@@ -367,6 +465,22 @@ func (c *Config) Validate() error {
 	// Validação de Email: TLS e SSL são mutuamente exclusivos
 	if c.Email.UseTLS && c.Email.UseSSL {
 		return fmt.Errorf("email.use_tls e email.use_ssl não podem ser ambos true (priorizando TLS)")
+	}
+
+	// Validação de Email IMAP: se WaitForResponseDefault > 0, IMAP deve estar configurado
+	if c.Email.WaitForResponseDefault > 0 {
+		if c.Email.IMAPHost == "" {
+			return fmt.Errorf("email.wait_for_response_default_minutes > 0 requer email.imap_host configurado")
+		}
+		if c.Email.IMAPPort == 0 {
+			return fmt.Errorf("email.wait_for_response_default_minutes > 0 requer email.imap_port configurado")
+		}
+		if c.Email.IMAPUsername == "" {
+			return fmt.Errorf("email.wait_for_response_default_minutes > 0 requer email.imap_username configurado")
+		}
+		if c.Email.IMAPPassword == "" {
+			return fmt.Errorf("email.wait_for_response_default_minutes > 0 requer email.imap_password configurado")
+		}
 	}
 
 	// Validação de aliases

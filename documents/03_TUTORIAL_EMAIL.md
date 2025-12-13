@@ -242,10 +242,34 @@ cast send mail destinatario@exemplo.com "Assunto do Email" "Corpo da mensagem"
 ### 7.2 Enviar email com anexo
 
 ```bash
-cast send mail destinatario@exemplo.com "Relatório" "Segue o relatório em anexo" "caminho/para/arquivo.pdf"
+cast send mail destinatario@exemplo.com "Relatório" "Segue o relatório em anexo" --attachment caminho/para/arquivo.pdf
 ```
 
-### 7.3 Verificar se funcionou
+### 7.3 Aguardar resposta (IMAP Monitor)
+
+```bash
+# Aguarda resposta usando tempo do config ou 30min (padrão)
+cast send mail destinatario@exemplo.com "Pergunta importante" \
+  --subject "Sua opinião" \
+  --wfr
+
+# Aguarda 5 minutos específicos
+cast send mail destinatario@exemplo.com "Pergunta importante" \
+  --subject "Sua opinião" \
+  --wfr --wfr-minutes 5
+
+# Apenas --wfr-minutes (ativa automaticamente)
+cast send mail destinatario@exemplo.com "Confirmação" \
+  --subject "Confirme recebimento" \
+  --wfr-minutes 2 --verbose
+
+# Forma longa --wait-for-response
+cast send mail destinatario@exemplo.com "Solicitação" \
+  --subject "Por favor, responda" \
+  --wait-for-response --wfr-minutes 10
+```
+
+### 7.4 Verificar se funcionou
 
 Verifique a caixa de entrada (e spam) do destinatário. Se o email chegou, a configuração está correta! ✅
 
@@ -355,3 +379,18 @@ cast send mail dev-team "Deploy" "Deploy realizado com sucesso"
 - Confirme que o email do destinatário está correto
 - Verifique a pasta de spam
 - Teste com outro provedor SMTP
+
+### Erro ao aguardar resposta (--wfr)
+- Verifique se a configuração IMAP está completa
+- Confirme que `imap_host`, `imap_port`, `imap_username` e `imap_password` estão corretos
+- Para Gmail, use a mesma App Password do SMTP
+- Verifique se a pasta IMAP está correta (geralmente "INBOX")
+- Use `--verbose` para ver logs detalhados da conexão IMAP
+- Certifique-se de que o servidor IMAP está acessível (porta 993 para SSL, 143 para TLS)
+
+### Resposta não é detectada
+- O CAST busca por `In-Reply-To` e `References` headers primeiro
+- Se não encontrar, usa fallback por Subject após 3 ciclos
+- Certifique-se de que o cliente de email do destinatário está configurando corretamente os headers de resposta
+- Use `--verbose` para ver qual método de busca está sendo usado
+- Verifique se o Message-ID do email enviado está sendo referenciado na resposta

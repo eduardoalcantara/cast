@@ -1,7 +1,7 @@
 # CAST - PROJECT STATUS
 
-**Última atualização:** 2025-01-XX
-**Versão:** 0.6.0 (Fase 06 - Provider WAHA)
+**Última atualização:** 2025-01-13
+**Versão:** 0.7.0 (Fase 07 - IMAP Monitor)
 **Status Geral:** 🟡 Em Desenvolvimento
 
 ---
@@ -106,6 +106,20 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] Testes unitários (8 testes, 100% passando)
 - [x] Tutorial completo criado (`documents/05_TUTORIAL_WAHA.md`)
 - [x] Especificação técnica profunda criada
+
+### ✅ Fase 07: IMAP Monitor (--wait-for-response)
+- [x] Monitoramento IMAP para aguardar resposta por email
+- [x] Geração de Message-ID único para cada email enviado
+- [x] Busca por `In-Reply-To` e `References` headers
+- [x] Fallback por Subject (após 3 ciclos, com validação de InReplyTo)
+- [x] Polling configurável (intervalo entre ciclos de busca)
+- [x] Validação robusta de resposta (garante que corresponde ao email correto)
+- [x] Exibição do corpo completo da resposta
+- [x] Exit codes específicos (0=resposta recebida, 3=timeout, 2/4=erros)
+- [x] Logs detalhados em modo verbose
+- [x] Configuração IMAP completa (host, porta, credenciais, SSL/TLS)
+- [x] Testes unitários básicos (6 testes)
+- [x] Integração completa no comando `send` com flag `--wfr`
 
 ---
 
@@ -333,7 +347,55 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 
 ---
 
-## 📋 FASE 07 - BUILD & RELEASE (PENDENTE)
+## ✅ FASE 07 - DETALHAMENTO
+
+### ✅ IMAP Monitor (`internal/providers/email_imap.go`)
+- [x] Função `WaitForEmailResponse()` - Orquestra conexão IMAP e polling
+- [x] Função `connectIMAP()` - Conexão com SSL/TLS e autenticação
+- [x] Função `searchEmailResponse()` - Busca por Message-ID e Subject
+- [x] Função `fetchAndValidateMessage()` - Valida InReplyTo no fallback
+- [x] Função `fetchLatestMessage()` - Busca mensagem completa (BODY[])
+- [x] Função `parseEmailMessage()` - Extrai From, Date, Subject, Body
+- [x] Polling configurável via `imap_poll_interval_seconds`
+- [x] Fallback por Subject apenas após 3 ciclos (dá tempo para resposta)
+- [x] Validação de InReplyTo para evitar pegar mensagens antigas
+- [x] Logs detalhados para debugging
+
+### ✅ Geração de Message-ID (`internal/providers/email.go`)
+- [x] Função `generateMessageID()` - Gera Message-ID único
+- [x] Função `extractDomain()` - Extrai domínio do email
+- [x] Interface `EmailProviderExtended` com `GetLastMessageID()`
+- [x] `SendEmail()` retorna Message-ID gerado
+- [x] Message-ID incluído nos headers do email
+
+### ✅ Configuração IMAP (`internal/config/config.go`)
+- [x] Campos IMAP adicionados em `EmailConfig`:
+  - `IMAPHost`, `IMAPPort`, `IMAPUsername`, `IMAPPassword`
+  - `IMAPUseTLS`, `IMAPUseSSL`, `IMAPFolder`, `IMAPTimeout`
+  - `IMAPPollInterval` (novo)
+  - `WaitForResponseDefault`, `WaitForResponseMax`, `WaitForResponseMaxLines`
+- [x] Suporte a ENV (`CAST_EMAIL_IMAP_*`)
+- [x] Validação de configuração IMAP quando `WaitForResponseDefault > 0`
+- [x] Defaults aplicados (porta 993, pasta INBOX, timeout 60s, poll 15s)
+
+### ✅ Integração CLI (`cmd/cast/send.go`)
+- [x] Flags `--wfr` e `--wait-for-response` (bool) adicionadas
+- [x] Flag `--wfr-minutes` (int opcional) adicionada
+- [x] Cálculo de `waitMinutes` (`--wfr-minutes` > config > padrão 30min)
+- [x] Chamada a `WaitForEmailResponse()` após envio bem-sucedido
+- [x] Tratamento de exit codes específicos (0, 2, 3, 4)
+- [x] Aviso se `--wfr` usado com provider não-email
+- [x] Help atualizado com documentação de `--wfr` e `--wfr-minutes`
+
+### ✅ Testes (`internal/providers/email_imap_test.go`)
+- [x] `TestGenerateMessageID()` - Valida formato e unicidade
+- [x] `TestExtractDomain()` - Testa extração de domínio
+- [x] `TestFormatDuration()` - Testa formatação de duração
+- [x] Testes básicos de parsing e validação
+
+---
+
+## 📋 FASE 08 - BUILD & RELEASE (PENDENTE)
 
 ### 🔴 Build
 - [ ] Cross-compilation (Windows/Linux)
@@ -378,6 +440,7 @@ O CAST (CAST Automates Sending Tasks) é uma ferramenta CLI standalone para envi
 - [x] `results/04_RESULTS.md` - Resultados da Fase 04
 - [x] `results/05_RESULTS.md` - Resultados da Fase 05
 - [x] `results/06_RESULTS.md` - Resultados da Fase 06
+- [x] `results/07_RESULTS.md` - Resultados da Fase 07
 
 ### ⚠️ Pendente
 - [ ] README principal do projeto
@@ -535,18 +598,20 @@ type Config struct {
 
 ## 📝 NOTAS
 
-- O projeto está na **Fase 06** (Provider WAHA) - ✅ **CONCLUÍDA**
+- O projeto está na **Fase 07** (IMAP Monitor) - ✅ **CONCLUÍDA**
 - A estrutura base está completa e funcional
 - **Todos os 5 drivers estão implementados e testados** (Telegram, Email, WhatsApp, Google Chat, WAHA)
 - **Todos os bugs críticos foram corrigidos** (chat_id, configuração YAML, booleanos)
 - O comando `send` está totalmente funcional para todos os providers
+- **IMAP Monitor implementado** com busca por Message-ID e validação robusta
 - Comandos CRUD de configuração implementados e funcionais
 - Wizard interativo disponível para todos os providers
 - Help customizado 100% em português
 - Flag `--verbose` e comando `config sources` para debugging
 - Testes manuais validados com configurações reais
 - WAHA implementado como 5º provider (alternativa self-hosted ao WhatsApp Cloud)
-- Próximo foco: Fase 07 (Build & Release) ou melhorias incrementais
+- **Email com suporte a aguardar resposta** via IMAP (--wait-for-response)
+- Próximo foco: Fase 08 (Build & Release) ou melhorias incrementais
 
 ---
 

@@ -1,0 +1,1 @@
+## feedback: Quando precisar de feedback/confirmação/aprovação do usuário, use `cast send mail <dest> "<assunto>" "<msg>" --subject "<assunto>" --wfr --wfr-minutes 30 --verbose`, aguarde a resposta e use o conteúdo como input para continuar.

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "cast": {
+      "command": "go",
+      "args": [
+        "run",
+        "D:\\proj\\ia\\tools\\mcp\\cast-mcp-server\\main.go"
+      ],
+      "env": {
+        "CAST_PATH": "D:\\proj\\cast\\run\\cast.exe"
+      }
+    }
+  }
+}
+

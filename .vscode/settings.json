@@ -59,7 +59,6 @@
     "files.exclude": {
         "**/.git": true,
         "**/.DS_Store": true,
-        "**/run": true,
         "**/logs": true,
         "**/tests": true
     },
@@ -67,14 +66,12 @@
         "**/.git/objects/**": true,
         "**/.git/subtree-cache/**": true,
         "**/node_modules/**": true,
-        "**/run/**": true,
         "**/logs/**": true
     },
     // Configurações de busca
     "search.exclude": {
         "**/node_modules": true,
         "**/vendor": true,
-        "**/run": true,
         "**/logs": true,
         "**/*.exe": true
     }

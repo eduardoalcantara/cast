@@ -1,14 +1,17 @@
 package providers
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"mime"
 	"net/smtp"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/eduardoalcantara/cast/internal/config"
 )
@@ -16,12 +19,14 @@ import (
 // EmailProviderExtended define interface estendida para email com assunto e anexos.
 type EmailProviderExtended interface {
 	Provider
-	SendEmail(target string, message string, subject string, attachments []string) error
+	SendEmail(target string, message string, subject string, attachments []string) (string, error)
+	GetLastMessageID() string
 }
 
 // emailProvider implementa o Provider para Email (SMTP).
 type emailProvider struct {
-	config *config.EmailConfig
+	config     *config.EmailConfig
+	lastMessageID string // Armazena o último Message-ID gerado
 }
 
 // NewEmailProvider cria uma nova instância do EmailProvider.
@@ -45,16 +50,23 @@ func (p *emailProvider) Name() string {
 
 // Send envia uma mensagem via Email (SMTP).
 func (p *emailProvider) Send(target string, message string) error {
-	return p.SendEmail(target, message, "", nil)
+	_, err := p.SendEmail(target, message, "", nil)
+	return err
+}
+
+// GetLastMessageID retorna o último Message-ID gerado.
+func (p *emailProvider) GetLastMessageID() string {
+	return p.lastMessageID
 }
 
 // SendEmail envia uma mensagem via Email (SMTP) com assunto e anexos opcionais.
-func (p *emailProvider) SendEmail(target string, message string, subject string, attachments []string) error {
+// Retorna o Message-ID gerado e o erro (se houver).
+func (p *emailProvider) SendEmail(target string, message string, subject string, attachments []string) (string, error) {
 	// Parseia múltiplos targets usando função do config
 	targets := config.ParseTargets(target)
 
 	if len(targets) == 0 {
-		return fmt.Errorf("nenhum destinatário especificado")
+		return "", fmt.Errorf("nenhum destinatário especificado")
 	}
 
 	// Monta o endereço do servidor SMTP
@@ -85,15 +97,20 @@ func (p *emailProvider) SendEmail(target string, message string, subject string,
 		subject = "Notificação CAST"
 	}
 
+	// Gera Message-ID único
+	domain := extractDomain(fromEmail)
+	messageID := generateMessageID(domain)
+	p.lastMessageID = messageID
+
 	// Monta o corpo do email (com ou sem anexos)
 	var emailBody []byte
 	var err error
 
 	if len(attachments) > 0 {
 		// Email com anexos (multipart/mixed)
-		emailBody, err = p.buildMultipartMessage(fromName, fromEmail, targets, subject, message, attachments)
+		emailBody, err = p.buildMultipartMessage(fromName, fromEmail, targets, subject, message, attachments, messageID)
 		if err != nil {
-			return fmt.Errorf("erro ao montar mensagem com anexos: %w", err)
+			return "", fmt.Errorf("erro ao montar mensagem com anexos: %w", err)
 		}
 	} else {
 		// Email simples (text/plain)
@@ -101,6 +118,7 @@ func (p *emailProvider) SendEmail(target string, message string, subject string,
 			fmt.Sprintf("From: %s <%s>", fromName, fromEmail),
 			fmt.Sprintf("To: %s", strings.Join(targets, ", ")),
 			fmt.Sprintf("Subject: %s", subject),
+			fmt.Sprintf("Message-ID: %s", messageID),
 			"MIME-Version: 1.0",
 			"Content-Type: text/plain; charset=UTF-8",
 			"",
@@ -128,14 +146,14 @@ func (p *emailProvider) SendEmail(target string, message string, subject string,
 	}
 
 	if err != nil {
-		return fmt.Errorf("erro ao enviar email: %w", err)
+		return "", fmt.Errorf("erro ao enviar email: %w", err)
 	}
 
-	return nil
+	return messageID, nil
 }
 
 // buildMultipartMessage monta uma mensagem MIME multipart com anexos.
-func (p *emailProvider) buildMultipartMessage(fromName, fromEmail string, targets []string, subject, message string, attachments []string) ([]byte, error) {
+func (p *emailProvider) buildMultipartMessage(fromName, fromEmail string, targets []string, subject, message string, attachments []string, messageID string) ([]byte, error) {
 	boundary := "----=_Part_" + fmt.Sprintf("%d", len(attachments))
 
 	var parts []string
@@ -144,6 +162,7 @@ func (p *emailProvider) buildMultipartMessage(fromName, fromEmail string, target
 	parts = append(parts, fmt.Sprintf("From: %s <%s>", fromName, fromEmail))
 	parts = append(parts, fmt.Sprintf("To: %s", strings.Join(targets, ", ")))
 	parts = append(parts, fmt.Sprintf("Subject: %s", subject))
+	parts = append(parts, fmt.Sprintf("Message-ID: %s", messageID))
 	parts = append(parts, "MIME-Version: 1.0")
 	parts = append(parts, fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"", boundary))
 	parts = append(parts, "")
@@ -198,6 +217,28 @@ func (p *emailProvider) buildMultipartMessage(fromName, fromEmail string, target
 	parts = append(parts, fmt.Sprintf("--%s--", boundary))
 
 	return []byte(strings.Join(parts, "\r\n")), nil
+}
+
+// generateMessageID gera um Message-ID único no formato: cast-<timestamp>-<random>@<domain>
+func generateMessageID(domain string) string {
+	if domain == "" {
+		domain = "cast.local"
+	}
+	// Gera 8 bytes aleatórios em hex
+	randomBytes := make([]byte, 8)
+	rand.Read(randomBytes)
+	randomHex := hex.EncodeToString(randomBytes)
+	// Formato: cast-<timestamp>-<random>@<domain>
+	return fmt.Sprintf("<cast-%d-%s@%s>", time.Now().UnixNano(), randomHex, domain)
+}
+
+// extractDomain extrai o domínio de um endereço de email.
+func extractDomain(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return "cast.local"
 }
 
 // sendWithSSL envia email usando SSL (porta 465).

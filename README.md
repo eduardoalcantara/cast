@@ -1,6 +1,6 @@
 # CAST - CAST Automates Sending Tasks
 
-**Versão:** 0.6.0 | **Status:** 🟡 Em Desenvolvimento
+**Versão:** 0.7.0 | **Status:** 🟡 Em Desenvolvimento
 
 Ferramenta CLI standalone para envio agnóstico de mensagens (Fire & Forget) via múltiplos gateways de comunicação.
 
@@ -146,8 +146,8 @@ cast alias add me --provider telegram --target 123456789 --name "Meu Telegram"
 
 - **Protocolo**: SMTP com TLS/SSL
 - **Formato**: `cast send email <destinatário> <mensagem>`
-- **Configuração**: Host, porta, credenciais, TLS/SSL
-- **Recursos**: Assunto customizado, anexos, múltiplos destinatários
+- **Configuração**: Host, porta, credenciais, TLS/SSL, IMAP (opcional)
+- **Recursos**: Assunto customizado, anexos, múltiplos destinatários, **aguardar resposta via IMAP** (`--wfr`)
 
 ### ✅ Google Chat
 
@@ -186,6 +186,8 @@ cast send waha 5511999998888@c.us "Notificação WAHA"
 - `--verbose, -v`: Modo debug (mostra detalhes da requisição)
 - `--subject, -s`: Assunto do email (apenas para email)
 - `--attachment, -a`: Arquivo anexo (apenas para email, pode ser usado múltiplas vezes)
+- `--wfr, --wait-for-response`: Aguarda resposta do destinatário via IMAP (usa tempo do config ou 30min, apenas para email)
+- `--wfr-minutes N`: Especifica tempo de espera em minutos (sobrescreve config, apenas para email)
 
 ### `cast gateway`
 
@@ -313,6 +315,20 @@ email:
   use_tls: true
   use_ssl: false
   timeout: 30
+  # IMAP: usado apenas se --wait-for-response estiver ativo
+  imap_host: "imap.gmail.com"
+  imap_port: 993
+  imap_username: "seu-email@gmail.com"
+  imap_password: "sua-senha"
+  imap_use_tls: false
+  imap_use_ssl: true
+  imap_folder: "INBOX"
+  imap_timeout: 60
+  imap_poll_interval_seconds: 15  # Intervalo entre ciclos de busca (5-60s)
+  # Espera por resposta
+  wait_for_response_default_minutes: 0  # 0 = desabilitado por padrão
+  wait_for_response_max_minutes: 120     # Teto de segurança
+  wait_for_response_max_lines: 0        # 0 = mostrar corpo completo
 
 google_chat:
   webhook_url: "https://chat.googleapis.com/v1/spaces/..."
@@ -381,6 +397,30 @@ cast send email admin@empresa.com "Relatório diário em anexo" \
   --attachment relatorio.pdf
 ```
 
+### Email Aguardando Resposta (IMAP Monitor)
+
+```bash
+# Aguarda resposta usando tempo do config ou 30min (padrão)
+cast send email destinatario@exemplo.com "Pergunta importante" \
+  --subject "Sua opinião" \
+  --wfr
+
+# Aguarda 5 minutos específicos
+cast send email destinatario@exemplo.com "Pergunta importante" \
+  --subject "Sua opinião" \
+  --wfr --wfr-minutes 5
+
+# Apenas --wfr-minutes (ativa automaticamente)
+cast send email destinatario@exemplo.com "Confirmação" \
+  --subject "Confirme recebimento" \
+  --wfr-minutes 2 --verbose
+
+# Forma longa --wait-for-response
+cast send email destinatario@exemplo.com "Solicitação" \
+  --subject "Por favor, responda" \
+  --wait-for-response --wfr-minutes 10
+```
+
 ### Múltiplos Destinatários
 
 ```bash
@@ -414,7 +454,18 @@ cast send waha 120363XXXXX@g.us "Mensagem para o grupo"
 
 ## 🚧 Implementações Pendentes
 
-### Fase 07 - Build & Release
+### ✅ Fase 07 - IMAP Monitor (--wait-for-response)
+
+- [x] **Monitoramento IMAP**: Aguarda resposta por email após envio
+- [x] **Busca por Message-ID**: Identifica resposta via `In-Reply-To` e `References`
+- [x] **Fallback por Subject**: Busca alternativa após alguns ciclos
+- [x] **Validação de InReplyTo**: Garante que a resposta corresponde ao email correto
+- [x] **Polling Configurável**: Intervalo entre ciclos de busca (5-60 segundos)
+- [x] **Exit Codes Específicos**: 0 (resposta recebida), 3 (timeout), 2/4 (erros)
+- [x] **Corpo Completo**: Exibe corpo da mensagem de resposta
+- [x] **Logs Detalhados**: Modo verbose para debugging IMAP
+
+### 🔴 Fase 08 - Build & Release (Pendente)
 
 - [ ] **Cross-compilation**: Scripts para Windows e Linux
 - [ ] **Versionamento Automático**: Integração com Git tags
